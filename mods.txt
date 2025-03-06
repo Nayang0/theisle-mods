@@ -1,0 +1,3 @@
+# filename hash download_url
+TheIsle-Zzz_Yutty.pak 76efa3df44d4b0e1d2bfa4cac45e149f4bc16c4165f48b730147535cfa0de345 https://raw.githubusercontent.com/Nayang0/theisle-mods/main/mods/TheIsle-Zzz_Yutty.pak
+TheIsle-Zzz_Yutty.sig 78d4cc965897cc37bde5b8e32b5606f0c452096fb559840b4f6d89a5a5191feb https://raw.githubusercontent.com/Nayang0/theisle-mods/main/mods/TheIsle-Zzz_Yutty.sig
