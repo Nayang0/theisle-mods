@@ -171,18 +171,12 @@ class IsleLauncher:
 
             # Tutorial actualizado
             tutorial_steps = [
-                ("Paso 1", "Configura la carpeta Paks usando 'Configurar Paks' (Importante)"),
-                ("Paso 2", "Configura la ruta de Legacy usando 'Configurar Legacy' (Importante)"),
-                ("Paso 3", "Si eres jugador, hay dos formas de usar mods:"),
-                ("Opción A", "• Ingresa la IP del servidor y usa 'Links Mods' para ver los mods disponibles"),
-                ("Opción B", "• Si el servidor tiene [github=usuario/repo] en su nombre, se descargarán automáticamente"),
-                ("Paso 4", "Si eres creador:"),
-                ("", "• Usa el botón 'Creador' para registrar tu repositorio de GitHub"),
-                ("", "• Tu repositorio debe tener un archivo mods.txt con los archivos .pak y .sig"),
-                ("Paso 5", "Una vez instalados los mods necesarios, usa 'Conectar' para unirte al servidor"),
-                ("Nota", "• Los servidores se guardan automáticamente en tu lista"),
-                ("", "• Puedes ver los logs con el botón 'Ver Log'"),
-                ("", "• Usa 'Abrir Carpeta Paks' para acceder directamente a los mods instalados")
+                ("Paso 1", "Configura la carpeta Paks usando 'Configurar Paks'"),
+                ("Paso 2", "Configura la ruta de Legacy usando 'Configurar Legacy'"),
+                ("Paso 3", "Ingresa la IP del servidor"),
+                ("Paso 4", "El launcher detectará automáticamente si el servidor requiere mods"),
+                ("Nota", "• Los servidores con [github=usuario/repo] instalarán mods automáticamente"),
+                ("", "• Los mods se descargarán antes de conectar si son necesarios")
             ]
 
             # Crear grid de tutorial
@@ -327,26 +321,41 @@ class IsleLauncher:
 
     # Modificar el método connect para usar la ruta configurada
     def connect(self):
+        """Conecta al servidor con detección automática de mods"""
         try:
             ip = self.ip_entry.get().strip()
             if not ip or ':' not in ip:
                 messagebox.showerror("Error", "Por favor ingresa una IP de servidor")
                 return
 
-            # Verificar solo la ruta de Legacy
-            game_exe = os.path.join(self.legacy_path, "TheIsle.exe")
-            if not os.path.exists(game_exe):
-                messagebox.showerror("Error", "No se encuentra TheIsle.exe en la ruta configurada")
+            ip_address = ip.split(':')[0]
+            port = int(ip.split(':')[1])
+
+            # 1. Consultar info del servidor via Steam
+            server_info = self.query_server_info(ip_address, port)
+            if not server_info:
+                messagebox.showerror("Error", "No se pudo obtener información del servidor")
                 return
 
-            # Lanzar el juego directamente
+            # 2. Verificar si el nombre tiene indicador de GitHub
+            if server_info['github_url']:
+                if messagebox.askyesno(
+                    "Mods Detectados",
+                    f"Este servidor requiere mods de: {server_info['github_url']}\n¿Descargar ahora?"
+                ):
+                    self.download_creator_mods(f"https://github.com/{server_info['github_url']}")
+
+            # 3. Lanzar juego
+            game_exe = os.path.join(self.legacy_path, "TheIsle.exe")
+            if not os.path.exists(game_exe):
+                messagebox.showerror("Error", "No se encuentra TheIsle.exe")
+                return
+
             command = f'"{game_exe}" -log -USEALLAVAILABLECORES +connect {ip} +accept_responsibility -nosteam -game'
-            logging.info(f"Lanzando Legacy: {command}")
-            
             subprocess.Popen(command, shell=True, cwd=self.legacy_path)
 
         except Exception as e:
-            logging.error(f"Error al conectar: {str(e)}")
+            logging.error(f"Error conectando: {str(e)}")
             messagebox.showerror("Error", f"Error al conectar: {str(e)}")
 
     def download_mods(self, mod_list):
@@ -1252,48 +1261,81 @@ class IsleLauncher:
             messagebox.showerror("Error", f"Error descargando mods: {str(e)}")
 
     def query_server_info(self, ip, port):
-        """Query server using Steam A2S_INFO protocol"""
+        """Query server using Steam A2S_INFO protocol with better error handling"""
+        sock = None
         try:
             # Create UDP socket
             sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             sock.settimeout(A2S_TIMEOUT)
             
+            logging.info(f"Intentando consultar servidor: {ip}:{port}")
+            
             # Send A2S_INFO query
             sock.sendto(A2S_INFO, (ip, int(port)))
             
-            # Receive response
-            data = sock.recvfrom(1400)[0]
-            
+            # Receive response with retry
+            tries = 3
+            while tries > 0:
+                try:
+                    data = sock.recvfrom(1400)[0]
+                    break
+                except socket.timeout:
+                    tries -= 1
+                    if tries == 0:
+                        logging.warning(f"Timeout al consultar servidor: {ip}:{port}")
+                        return {
+                            'name': 'Unknown',
+                            'map': 'Unknown',
+                            'github_url': None
+                        }
+                    continue
+                
             # Parse response
             if data.startswith(b'\xFF\xFF\xFF\xFF\x49'):
                 # Skip header and response type
                 data = data[5:]
                 
-                # Parse server info
-                protocol = ord(data[0:1])
-                name = data[1:].split(b'\x00')[0].decode('utf-8')
-                map_name = data[1:].split(b'\x00')[1].decode('utf-8')
+                try:
+                    # Parse server info more safely
+                    protocol = data[0]
+                    parts = data[1:].split(b'\x00')
+                    name = parts[0].decode('utf-8', errors='ignore')
+                    map_name = parts[1].decode('utf-8', errors='ignore')
+                    
+                    # Check for GitHub hint in server name
+                    github_url = None
+                    if '[github=' in name.lower():
+                        start = name.lower().index('[github=') + 8
+                        end = name.index(']', start)
+                        github_url = name[start:end]
+                    
+                    logging.info(f"Servidor consultado exitosamente: {name}")
+                    return {
+                        'name': name,
+                        'map': map_name,
+                        'github_url': github_url
+                    }
+                except Exception as e:
+                    logging.error(f"Error parsing server response: {str(e)}")
+                    
+            return {
+                'name': 'Unknown',
+                'map': 'Unknown',
+                'github_url': None
+            }
                 
-                # Check for GitHub hint in server name
-                github_url = None
-                if '[github=' in name.lower():
-                    start = name.lower().index('[github=') + 8
-                    end = name.index(']', start)
-                    github_url = name[start:end]
-                
-                return {
-                    'name': name,
-                    'map': map_name,
-                    'github_url': github_url
-                }
-                
+        except socket.gaierror:
+            logging.error(f"No se pudo resolver el nombre del host: {ip}")
             return None
-            
+        except ConnectionRefusedError:
+            logging.error(f"Conexión rechazada por el servidor: {ip}:{port}")
+            return None
         except Exception as e:
             logging.error(f"Error querying server: {str(e)}")
             return None
         finally:
-            sock.close()
+            if sock:
+                sock.close()
 
 if __name__ == "__main__":
     try:
