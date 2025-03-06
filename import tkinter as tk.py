@@ -127,6 +127,30 @@ class IsleLauncher:
                                     justify=tk.LEFT)
                 help_label.grid(row=row, column=col, padx=5, pady=2, sticky=tk.W)
 
+            # Después del marco de ayuda, añadir marco de tutorial
+            tutorial_frame = ttk.LabelFrame(main_frame, text="Tutorial de Uso", padding="5")
+            tutorial_frame.grid(row=7, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=10)
+
+            # Pasos del tutorial
+            tutorial_steps = [
+                ("Paso 1", "Configura la carpeta Paks usando el botón 'Configurar Paks'"),
+                ("Paso 2", "Configura la ruta de Legacy usando el botón 'Configurar Legacy'"),
+                ("Paso 3", "Presiona 'Actualizar Mods' para verificar los mods necesarios"),
+                ("Paso 4", "Si aparecen mods como 'No instalado', permite que se descarguen"),
+                ("Paso 5", "Ingresa la IP del servidor o selecciona uno guardado"),
+                ("Paso 6", "Presiona 'Conectar' para unirte al servidor")
+            ]
+
+            # Crear grid de tutorial
+            for i, (step, desc) in enumerate(tutorial_steps):
+                step_label = ttk.Label(
+                    tutorial_frame, 
+                    text=f"➤ {step}: {desc}", 
+                    wraplength=700,
+                    justify=tk.LEFT
+                )
+                step_label.grid(row=i, column=0, padx=5, pady=2, sticky=tk.W)
+
         except Exception as e:
             logging.error(f"Error en setup_gui: {str(e)}")
             messagebox.showerror("Error", f"Error en la interfaz: {str(e)}")
@@ -224,27 +248,31 @@ class IsleLauncher:
             
             # Log para debugging
             logging.info(f"Verificando archivo en: {filepath}")
-            logging.info(f"Ruta de Paks actual: {self.pak_folder}")
             
             if not os.path.exists(filepath):
                 logging.info(f"Archivo no encontrado en: {filepath}")
                 return "No instalado"
             
+            # Leer archivo y generar hash
             with open(filepath, 'rb') as f:
                 file_content = f.read()
-                current_hash = hashlib.sha256(file_content).hexdigest()
-                
+                current_hash = hashlib.sha256(file_content).hexdigest().lower()
+                expected_hash = expected_hash.lower()
+            
             # Log detallado
             logging.info(f"Verificando {filename}")
-            logging.info(f"Ruta completa: {filepath}")
             logging.info(f"Hash esperado: {expected_hash}")
             logging.info(f"Hash actual: {current_hash}")
-            logging.info(f"Tamaño archivo: {len(file_content)} bytes")
+            logging.info(f"¿Hashes coinciden?: {current_hash == expected_hash}")
             
-            if current_hash.lower() == expected_hash.lower():
+            # Comparación exacta de hashes
+            if current_hash == expected_hash:
                 return "Verificado"
-            
-            return "Desactualizado"
+            else:
+                logging.warning(f"Hash no coincide para {filename}")
+                logging.warning(f"Esperado: {expected_hash}")
+                logging.warning(f"Actual: {current_hash}")
+                return "Desactualizado"
             
         except Exception as e:
             logging.error(f"Error verificando {filename}: {str(e)}")
@@ -334,13 +362,26 @@ class IsleLauncher:
             messagebox.showerror("Error", f"Error al conectar: {str(e)}")
 
     def download_mods(self, mod_list):
-        """Descarga los mods requeridos"""
+        """Descarga los mods requeridos desde Google Drive"""
         try:
             for mod_name in mod_list:
                 mod_info = self.mod_list[mod_name]
                 url = mod_info['url']
                 
-                response = requests.get(url, stream=True)
+                logging.info(f"Descargando {mod_name} desde {url}")
+                
+                # Descargar desde Google Drive
+                response = requests.get(url, stream=True, allow_redirects=True)
+                
+                # Verificar si es una página de confirmación de Google Drive
+                if 'Content-Disposition' not in response.headers:
+                    logging.warning("Detectada página de confirmación de Google Drive")
+                    # Extraer el ID de Google Drive de la URL
+                    file_id = url.split('id=')[1]
+                    # Construir URL directa
+                    url = f"https://drive.google.com/uc?export=download&confirm=t&id={file_id}"
+                    response = requests.get(url, stream=True)
+                
                 total_size = int(response.headers.get('content-length', 0))
                 
                 filepath = os.path.join(self.pak_folder, mod_name)
@@ -349,8 +390,21 @@ class IsleLauncher:
                         if chunk:
                             f.write(chunk)
                 
-            messagebox.showinfo("Éxito", "Mods descargados correctamente")
-            self.refresh_mods()
+                # Verificar el archivo descargado
+                status = self.check_mod_status(mod_name, mod_info['hash'])
+                logging.info(f"Estado después de descarga: {status}")
+                
+                if status != "Verificado":
+                    raise Exception(f"Hash no coincide para {mod_name}")
+                
+                # Actualizar estado en la interfaz
+                mod_info['status_label'].config(text="Verificado")
+                mod_info['status'] = "Verificado"
+                
+                # Forzar actualización visual
+                self.root.update()
+            
+            messagebox.showinfo("Éxito", "Mods descargados y verificados correctamente")
             
         except Exception as e:
             logging.error(f"Error descargando mods: {str(e)}")
