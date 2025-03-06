@@ -4,3 +4,8 @@
 2025-03-06 01:50:54,676 - ERROR - Error cargando servidores: 'IsleLauncher' object has no attribute 'server_listbox'
 2025-03-06 01:56:09,292 - ERROR - Error en setup_gui: 'IsleLauncher' object has no attribute 'on_server_select'
 2025-03-06 01:58:54,052 - ERROR - Error en setup_gui: 'IsleLauncher' object has no attribute 'on_server_select'
+2025-03-06 04:25:11,011 - ERROR - Error en setup_gui: 'IsleLauncher' object has no attribute 'select_mod_type'
+2025-03-06 04:25:55,762 - ERROR - Error en setup_gui: 'IsleLauncher' object has no attribute 'select_mod_type'
+2025-03-06 04:58:49,493 - ERROR - Error en setup_gui: too many values to unpack (expected 2)
+2025-03-06 04:59:04,418 - ERROR - Error en setup_gui: too many values to unpack (expected 2)
+2025-03-06 05:00:15,791 - ERROR - Error en setup_gui: too many values to unpack (expected 2)

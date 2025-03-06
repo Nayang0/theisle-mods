@@ -20,7 +20,6 @@ LEGACY_PATH = r"C:\Program Files (x86)\Steam\steamapps\common\The Isle"
 STEAM_APPID = "376210"
 DEFAULT_LEGACY_PATH = r"C:\Program Files (x86)\Steam\steamapps\common\The Isle"
 STEAM_URL_PROTOCOL = "steam://run/376210//"
-DEFAULT_SERVER = "190.53.190.195:7797"  # Cambia esto por tu servidor predeterminado
 MODS_URL = "https://raw.githubusercontent.com/Nayang0/theisle-mods/main/mods.txt"  # URL donde estará el mods.txt del servidor
 
 # Configurar logging
@@ -67,10 +66,33 @@ class IsleLauncher:
 
     def setup_gui(self):
         try:
-            # Frame principal
-            main_frame = ttk.Frame(self.root, padding="10")
-            main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+            # Crear un canvas principal con scrollbar
+            canvas = tk.Canvas(self.root)
+            scrollbar = ttk.Scrollbar(self.root, orient="vertical", command=canvas.yview)
             
+            # Frame principal scrollable
+            scrollable_frame = ttk.Frame(canvas)
+            scrollable_frame.bind(
+                "<Configure>",
+                lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+            )
+
+            # Crear ventana en el canvas
+            canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+            canvas.configure(yscrollcommand=scrollbar.set)
+
+            # Configurar grid
+            canvas.grid(row=0, column=0, sticky="nsew")
+            scrollbar.grid(row=0, column=1, sticky="ns")
+
+            # Hacer que el canvas se expanda
+            self.root.grid_rowconfigure(0, weight=1)
+            self.root.grid_columnconfigure(0, weight=1)
+
+            # Frame principal (ahora dentro del scrollable_frame)
+            main_frame = ttk.Frame(scrollable_frame, padding="10")
+            main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+
             # Lista de servidores (ahora es el primer elemento)
             ttk.Label(main_frame, text="Servidores Guardados:").grid(row=0, column=0, columnspan=2, sticky=tk.W)
             self.server_listbox = tk.Listbox(main_frame, height=5)
@@ -92,16 +114,28 @@ class IsleLauncher:
             button_frame.grid(row=6, column=0, columnspan=2, pady=5)
 
             # Primera fila de botones
-            ttk.Button(button_frame, text="Actualizar Mods", command=self.refresh_mods).grid(row=0, column=0, padx=5, pady=5)
-            ttk.Button(button_frame, text="Descargar Mods", command=self.download_pending_mods).grid(row=0, column=1, padx=5, pady=5)
-            ttk.Button(button_frame, text="Conectar", command=self.connect).grid(row=0, column=2, padx=5, pady=5)
+            ttk.Button(button_frame, text="Actualizar Mods", 
+                      command=self.refresh_mods).grid(row=0, column=0, padx=5, pady=5)
+            ttk.Button(button_frame, text="Descargar Mods", 
+                      command=self.download_pending_mods).grid(row=0, column=1, padx=5, pady=5)
+            ttk.Button(button_frame, text="Conectar", 
+                      command=self.connect).grid(row=0, column=2, padx=5, pady=5)
 
             # Segunda fila de botones
-            ttk.Button(button_frame, text="Guardar Servidor", command=self.save_server).grid(row=1, column=0, padx=5, pady=5)
-            ttk.Button(button_frame, text="Ver Log", command=self.view_log).grid(row=1, column=1, padx=5, pady=5)
-            ttk.Button(button_frame, text="Configurar Legacy", command=self.set_legacy_path).grid(row=1, column=2, padx=5, pady=5)
-            ttk.Button(button_frame, text="Configurar Paks", command=self.set_paks_path).grid(row=1, column=3, padx=5, pady=5)
-            ttk.Button(button_frame, text="Abrir Carpeta Paks", command=self.open_pak_folder).grid(row=1, column=4, padx=5, pady=5)
+            ttk.Button(button_frame, text="Verificar Servidor", 
+                      command=self.verify_server).grid(row=1, column=0, padx=5, pady=5)
+            ttk.Button(button_frame, text="Guardar Servidor", 
+                      command=self.save_server).grid(row=1, column=1, padx=5, pady=5)
+            ttk.Button(button_frame, text="Ver Log", 
+                      command=self.view_log).grid(row=1, column=2, padx=5, pady=5)
+
+            # Tercera fila de botones (configuración)
+            ttk.Button(button_frame, text="Configurar Legacy", 
+                      command=self.set_legacy_path).grid(row=2, column=0, padx=5, pady=5)
+            ttk.Button(button_frame, text="Configurar Paks", 
+                      command=self.set_paks_path).grid(row=2, column=1, padx=5, pady=5)
+            ttk.Button(button_frame, text="Abrir Carpeta Paks", 
+                      command=self.open_pak_folder).grid(row=2, column=2, padx=5, pady=5)
 
             # Después de los botones, añadir marco de ayuda
             help_frame = ttk.LabelFrame(main_frame, text="Guía de Botones", padding="5")
@@ -109,13 +143,15 @@ class IsleLauncher:
 
             # Textos de ayuda para cada botón
             helps = [
+                ("Verificar Servidor", "Analiza si el servidor requiere mods y muestra su estado"),
                 ("Actualizar Mods", "Verifica el estado de los mods instalados"),
+                ("Descargar Mods", "Descarga los mods faltantes o desactualizados"),
                 ("Conectar", "Inicia el juego y conecta al servidor seleccionado"),
-                ("Abrir Carpeta Paks", "Abre la carpeta donde se instalan los mods"),
                 ("Guardar Servidor", "Guarda la IP actual en la lista de servidores"),
                 ("Ver Log", "Muestra el registro de errores y eventos"),
                 ("Configurar Legacy", "Selecciona la ubicación del ejecutable de Legacy"),
-                ("Configurar Paks", "Selecciona la carpeta donde se instalarán los mods")
+                ("Configurar Paks", "Selecciona la carpeta donde se instalan los mods"),
+                ("Abrir Carpeta Paks", "Abre la carpeta donde están los mods instalados")
             ]
 
             # Crear grid de ayuda (4 columnas)
@@ -134,12 +170,12 @@ class IsleLauncher:
 
             # Pasos del tutorial
             tutorial_steps = [
-                ("Paso 1", "Configura la carpeta Paks usando el botón 'Configurar Paks'"),
-                ("Paso 2", "Configura la ruta de Legacy usando el botón 'Configurar Legacy'"),
-                ("Paso 3", "Presiona 'Actualizar Mods' para verificar los mods necesarios"),
-                ("Paso 4", "Si aparecen mods como 'No instalado', permite que se descarguen"),
-                ("Paso 5", "Ingresa la IP del servidor o selecciona uno guardado"),
-                ("Paso 6", "Presiona 'Conectar' para unirte al servidor")
+                ("Paso 1", "Configura la carpeta Paks usando 'Configurar Paks' (Importante)"),
+                ("Paso 2", "Configura la ruta de Legacy usando 'Configurar Legacy' (Importante)"),
+                ("Paso 3", "Ingresa la IP del servidor o selecciona uno guardado"),
+                ("Paso 4", "Usa 'Verificar Servidor' para comprobar si necesita mods"),
+                ("Paso 5", "Si requiere mods, usa 'Actualizar Mods' y luego 'Descargar Mods'"),
+                ("Paso 6", "Una vez todo esté listo, presiona 'Conectar' para unirte al servidor")
             ]
 
             # Crear grid de tutorial
@@ -151,6 +187,30 @@ class IsleLauncher:
                     justify=tk.LEFT
                 )
                 step_label.grid(row=i, column=0, padx=5, pady=2, sticky=tk.W)
+
+            # Añadir marco de mods disponibles
+            mods_help_frame = ttk.LabelFrame(main_frame, text="Guía de Mods Disponibles", padding="5")
+            mods_help_frame.grid(row=9, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=10)
+
+            # Información de mods
+            mods_info = [
+                ("TheIsle-Zzz_Yutty.pak/.sig", "es un ejemplo de como se verian Los Mods requeridos para algunos servidores."),
+                # Eliminar las otras entradas que no usamos
+            ]
+
+            for i, (mod_name, description) in enumerate(mods_info):
+                ttk.Label(
+                    mods_help_frame,
+                    text=f"• {mod_name}: {description}",
+                    wraplength=700,
+                    justify=tk.LEFT
+                ).grid(row=i, column=0, padx=5, pady=2, sticky=tk.W)
+
+            # Configurar el scrolling con el mouse
+            def _on_mousewheel(event):
+                canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+            
+            canvas.bind_all("<MouseWheel>", _on_mousewheel)
 
         except Exception as e:
             logging.error(f"Error en setup_gui: {str(e)}")
@@ -262,9 +322,9 @@ class IsleLauncher:
     # Modificar el método connect para usar la ruta configurada
     def connect(self):
         try:
-            ip = self.ip_entry.get().strip() or DEFAULT_SERVER
+            ip = self.ip_entry.get().strip()
             if not ip or ':' not in ip:
-                messagebox.showerror("Error", "IP inválida")
+                messagebox.showerror("Error", "Por favor ingresa una IP de servidor")
                 return
 
             # Verificar solo la ruta de Legacy
@@ -498,33 +558,44 @@ class IsleLauncher:
             logging.error(f"Error cargando servidores: {str(e)}")
 
     def save_server(self):
-        """Guarda el servidor actual en la lista"""
+        """Guarda el servidor actual en la lista usando la verificación"""
         try:
             ip = self.ip_entry.get().strip()
             if not ip or ':' not in ip:
                 messagebox.showerror("Error", "IP inválida")
                 return
-            
-            # Pedir nombre del servidor
-            server_name = simpledialog.askstring(
-                "Nombre del Servidor",
-                "Ingrese un nombre para este servidor:",
-                parent=self.root
-            )
-            
-            if server_name is None:  # Usuario canceló
-                return
                 
-            if not server_name.strip():  # Nombre vacío
-                server_name = "Servidor Legacy"
+            ip_address = ip.split(':')[0]
+            port = ip.split(':')[1]
             
-            # Inicializar el archivo de servidores si no existe
-            if not hasattr(self, 'servers'):
-                self.servers = {}
+            # Detectar tipo usando la misma lógica que verify_server
+            server_type = "Local" if any(ip_address.startswith(prefix) for prefix in [
+                '127.0.0.1',
+                'localhost',
+                '192.168.',
+                '190.',  # Añadir rango 190
+                '10.'
+            ] + [f'172.{i}.' for i in range(16, 32)]) else "Web"
+
+            # Verificar mods.txt y estado
+            has_mods = False
+            if os.path.exists('mods.txt'):
+                with open('mods.txt', 'r') as f:
+                    content = f.read().strip()
+                    if content and not content.startswith('#'):
+                        has_mods = True
+
+            # Generar nombre descriptivo
+            if has_mods:
+                server_name = f"Servidor {server_type} con Mods ({port})"
+            else:
+                server_name = f"Servidor {server_type} ({port})"
             
-            # Guardar servidor con nombre y timestamp
+            # Guardar servidor con información
             self.servers[ip] = {
                 "name": server_name,
+                "type": server_type,
+                "has_mods": has_mods,
                 "last_used": time.strftime("%Y-%m-%d %H:%M:%S")
             }
             
@@ -534,12 +605,42 @@ class IsleLauncher:
             
             # Actualizar lista
             self.update_server_list()
-            messagebox.showinfo("Éxito", f"Servidor '{server_name}' guardado correctamente")
-            
+            messagebox.showinfo("Éxito", f"Servidor guardado como: {server_name}")
+                
         except Exception as e:
-            error_msg = f"Error al guardar servidor: {str(e)}"
-            logging.error(error_msg)
-            messagebox.showerror("Error", error_msg)
+            logging.error(f"Error al guardar servidor: {str(e)}")
+            messagebox.showerror("Error", f"Error al guardar servidor: {str(e)}")
+
+    def detect_server_type(self, ip):
+        """Detecta si un servidor es local o web"""
+        local_ips = [
+            '127.0.0.1',
+            'localhost',
+            '192.168.',
+            '190.',  # Añadir rango 190
+            '10.',
+            '172.16.',
+            '172.17.',
+            '172.18.',
+            '172.19.',
+            '172.20.',
+            '172.21.',
+            '172.22.',
+            '172.23.',
+            '172.24.',
+            '172.25.',
+            '172.26.',
+            '172.27.',
+            '172.28.',
+            '172.29.',
+            '172.30.',
+            '172.31.'
+        ]
+        
+        for local_ip in local_ips:
+            if ip.startswith(local_ip):
+                return "Local"
+        return "Web"
 
     def save_last_server(self):
         """Guarda información del último servidor usado"""
@@ -587,7 +688,8 @@ class IsleLauncher:
             self.server_listbox.delete(0, tk.END)
             for ip in self.servers:
                 info = self.servers[ip]
-                display = f"{info.get('name', 'Unknown')} - {ip}"
+                server_type = info.get('type', 'Desconocido')
+                display = f"{info.get('name', 'Unknown')} [{server_type}] - {ip}"
                 self.server_listbox.insert(tk.END, display)
         except Exception as e:
             logging.error(f"Error al actualizar lista de servidores: {str(e)}")
@@ -675,21 +777,16 @@ class IsleLauncher:
                 
             logging.info(f"Verificando mods para servidor Legacy: {ip_port}")
             
-            # Leer archivo mods.txt local
+            # Leer archivo mods.txt global
             if os.path.exists('mods.txt'):
-                logging.info("Leyendo mods.txt local")
+                logging.info("Leyendo mods.txt global")
                 with open('mods.txt', 'r') as f:
                     mods_content = f.read()
-                    logging.info("Contenido de mods.txt encontrado")
-                    return mods_content
-            else:
-                logging.info("No se encontró archivo mods.txt local")
-                messagebox.showinfo(
-                    "Info",
-                    f"No se encontró archivo mods.txt para el servidor {ip_port}\n"
-                    "El servidor no requiere mods adicionales"
-                )
-                return "# filename hash download_url\n# Este servidor no requiere mods"
+                    if mods_content.strip() and not mods_content.startswith('#'):
+                        return mods_content
+                        
+            logging.info("No se encontraron mods requeridos")
+            return "# filename hash download_url\n# Este servidor no requiere mods"
                 
         except Exception as e:
             logging.error(f"Error verificando mods para {ip_port}: {str(e)}")
@@ -742,6 +839,71 @@ class IsleLauncher:
         except Exception as e:
             logging.error(f"Error actualizando lista de mods: {str(e)}")
             messagebox.showerror("Error", f"Error al actualizar lista de mods: {str(e)}")
+
+    def verify_server(self):
+        """Verifica el estado completo del servidor"""
+        try:
+            ip = self.ip_entry.get().strip()
+            if not ip or ':' not in ip:
+                messagebox.showerror("Error", "IP inválida")
+                return
+                
+            ip_address = ip.split(':')[0]
+            port = ip.split(':')[1]
+            
+            # 1. Detectar tipo de servidor
+            server_type = "Local" if any(ip_address.startswith(prefix) for prefix in [
+                '127.0.0.1', 'localhost', '192.168.', '190.', '10.'
+            ] + [f'172.{i}.' for i in range(16, 32)]) else "Web"
+
+            # 2. Verificar carpeta Paks
+            if not self.pak_folder:
+                messagebox.showwarning("Advertencia", "Configura primero la carpeta Paks")
+                return
+
+            # 3. Preparar resultado
+            result = [
+                f"Tipo de Servidor: {server_type}",
+                f"IP: {ip_address}",
+                f"Puerto: {port}",
+                "\nVerificación de Mods:"
+            ]
+
+            # 4. Verificar los archivos físicamente
+            pak_exists = os.path.exists(os.path.join(self.pak_folder, "TheIsle-Zzz_Yutty.pak"))
+            sig_exists = os.path.exists(os.path.join(self.pak_folder, "TheIsle-Zzz_Yutty.sig"))
+
+            # 5. Verificar si el servidor tiene mods.txt
+            requires_mods = False
+            if os.path.exists('mods.txt'):
+                with open('mods.txt', 'r') as f:
+                    content = f.read().strip()
+                    if content and not content.startswith('#'):
+                        requires_mods = True
+                        result.append("\nServidor con Mods:")
+                        # Mostrar archivos requeridos
+                        result.append("• TheIsle-Zzz_Yutty.pak")
+                        result.append("• TheIsle-Zzz_Yutty.sig")
+                        result.append("\nEstado de Instalación:")
+                        result.append("✓ TheIsle-Zzz_Yutty.pak" if pak_exists else "✗ TheIsle-Zzz_Yutty.pak (Falta)")
+                        result.append("✓ TheIsle-Zzz_Yutty.sig" if sig_exists else "✗ TheIsle-Zzz_Yutty.sig (Falta)")
+                    else:
+                        result.append("\n✓ Este servidor NO requiere mods")
+                        result.append("Puedes conectarte directamente")
+            else:
+                result.append("\n✓ Este servidor NO requiere mods")
+                result.append("Puedes conectarte directamente")
+
+            # 6. Mostrar resultados
+            if messagebox.askyesno(
+                "Verificación Completada",
+                "\n".join(result) + "\n\n¿Desea guardar este servidor?"
+            ):
+                self.save_server()
+                
+        except Exception as e:
+            logging.error(f"Error verificando servidor: {str(e)}")
+            messagebox.showerror("Error", f"Error al verificar servidor: {str(e)}")
 
 if __name__ == "__main__":
     try:
