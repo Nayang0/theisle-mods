@@ -13,7 +13,8 @@ from tkinter import simpledialog
 import shutil
 import re
 import zipfile
-
+import socket
+import struct
 
 # Configuraciones globales
 DEFAULT_PAK_FOLDER = r"C:\Program Files (x86)\Steam\steamapps\common\The Isle\TheIsle\Content\Paks"
@@ -26,6 +27,8 @@ DEFAULT_LEGACY_PATH = r"C:\Program Files (x86)\Steam\steamapps\common\The Isle"
 STEAM_URL_PROTOCOL = "steam://run/376210//"
 MODS_URL = "https://raw.githubusercontent.com/Nayang0/theisle-mods/main/mods.txt"  # URL donde estará el mods.txt del servidor
 CREATORS_FILE = "creators.json"
+A2S_INFO = b'\xFF\xFF\xFF\xFF\x54Source Engine Query\x00'
+A2S_TIMEOUT = 5.0  # seconds
 
 # Configurar logging
 logging.basicConfig(
@@ -143,13 +146,13 @@ class IsleLauncher:
 
             # Textos de ayuda actualizados para cada botón
             helps = [
-                ("Links Mods", "Muestra los mods disponibles de los creadores registrados"),
-                ("Creador", "Registra tu repositorio de mods si eres creador"),
-                ("Conectar", "Inicia el juego y conecta al servidor seleccionado"),
-                ("Ver Log", "Muestra el registro de errores y eventos"),
-                ("Configurar Legacy", "Selecciona la ubicación del ejecutable de Legacy"),
-                ("Configurar Paks", "Selecciona la carpeta donde se instalan los mods"),
-                ("Abrir Carpeta Paks", "Abre la carpeta donde están los mods instalados")
+                ("Links Mods", "Ver y descargar mods de los creadores registrados"),
+                ("Creador", "Registrar tu repositorio si eres creador de mods"),
+                ("Conectar", "Iniciar el juego y conectar al servidor"),
+                ("Ver Log", "Mostrar registro de errores y eventos"),
+                ("Configurar Legacy", "Seleccionar carpeta de The Isle Legacy"),
+                ("Configurar Paks", "Seleccionar carpeta donde se instalan los mods"),
+                ("Abrir Carpeta Paks", "Abrir carpeta de mods instalados")
             ]
 
             # Crear grid de ayuda (4 columnas)
@@ -166,14 +169,20 @@ class IsleLauncher:
             tutorial_frame = ttk.LabelFrame(main_frame, text="Tutorial de Uso", padding="5")
             tutorial_frame.grid(row=8, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=10)
 
-            # Tutorial actualizado con los nuevos pasos
+            # Tutorial actualizado
             tutorial_steps = [
                 ("Paso 1", "Configura la carpeta Paks usando 'Configurar Paks' (Importante)"),
                 ("Paso 2", "Configura la ruta de Legacy usando 'Configurar Legacy' (Importante)"),
-                ("Paso 3", "Ingresa la IP del servidor o selecciona uno guardado"),
-                ("Paso 4", "Si necesitas mods, usa el botón 'Links Mods' para ver los disponibles"),
-                ("Paso 5", "Selecciona el creador y descarga los mods necesarios"),
-                ("Paso 6", "Una vez todo esté listo, presiona 'Conectar' para unirte al servidor")
+                ("Paso 3", "Si eres jugador, hay dos formas de usar mods:"),
+                ("Opción A", "• Ingresa la IP del servidor y usa 'Links Mods' para ver los mods disponibles"),
+                ("Opción B", "• Si el servidor tiene [github=usuario/repo] en su nombre, se descargarán automáticamente"),
+                ("Paso 4", "Si eres creador:"),
+                ("", "• Usa el botón 'Creador' para registrar tu repositorio de GitHub"),
+                ("", "• Tu repositorio debe tener un archivo mods.txt con los archivos .pak y .sig"),
+                ("Paso 5", "Una vez instalados los mods necesarios, usa 'Conectar' para unirte al servidor"),
+                ("Nota", "• Los servidores se guardan automáticamente en tu lista"),
+                ("", "• Puedes ver los logs con el botón 'Ver Log'"),
+                ("", "• Usa 'Abrir Carpeta Paks' para acceder directamente a los mods instalados")
             ]
 
             # Crear grid de tutorial
@@ -472,21 +481,66 @@ class IsleLauncher:
 
     # 1. Configuración persistente
     def load_config(self):
-        """Carga la configuración del launcher"""
+        """Carga o crea configuración personalizada"""
         try:
             if os.path.exists(CONFIG_FILE):
                 with open(CONFIG_FILE, "r") as f:
                     config = json.load(f)
-                    # No usar valor por defecto, forzar configuración manual
-                    self.pak_folder = config.get("pak_folder", None)
-                    self.legacy_path = config.get("legacy_path", DEFAULT_LEGACY_PATH)
-            else:
-                self.pak_folder = None
-                self.legacy_path = DEFAULT_LEGACY_PATH
-                self.save_config()
+                    self.pak_folder = config.get("pak_folder", "")
+                    self.legacy_path = config.get("legacy_path", "")
+
+            # Si no existe configuración o las rutas no son válidas
+            if not self.pak_folder or not os.path.exists(self.pak_folder):
+                # Intentar buscar en ubicaciones comunes
+                possible_paths = [
+                    os.path.join(os.environ["ProgramFiles(x86)"], "Steam", "steamapps", "common", "The Isle", "TheIsle", "Content", "Paks"),
+                    os.path.join(os.environ["ProgramFiles"], "Steam", "steamapps", "common", "The Isle", "TheIsle", "Content", "Paks"),
+                    os.path.join(os.environ["ProgramFiles(x86)"], "Steam", "steamapps", "common", "The Isle - legacy", "TheIsle", "Content", "Paks"),
+                    "D:\\Steam\\steamapps\\common\\The Isle\\TheIsle\\Content\\Paks",
+                    "E:\\Steam\\steamapps\\common\\The Isle\\TheIsle\\Content\\Paks"
+                ]
+                
+                for path in possible_paths:
+                    if os.path.exists(path):
+                        self.pak_folder = path
+                        break
+                        
+                if not self.pak_folder:
+                    # Si no se encuentra, pedir al usuario
+                    messagebox.showinfo(
+                        "Configuración Inicial",
+                        "Por favor selecciona tu carpeta Paks de The Isle"
+                    )
+                    self.set_paks_path()
+
+            if not self.legacy_path or not os.path.exists(self.legacy_path):
+                # Buscar Legacy en ubicaciones comunes
+                possible_legacy = [
+                    os.path.join(os.environ["ProgramFiles(x86)"], "Steam", "steamapps", "common", "The Isle"),
+                    os.path.join(os.environ["ProgramFiles"], "Steam", "steamapps", "common", "The Isle"),
+                    os.path.join(os.environ["ProgramFiles(x86)"], "Steam", "steamapps", "common", "The Isle - legacy"),
+                    "D:\\Steam\\steamapps\\common\\The Isle",
+                    "E:\\Steam\\steamapps\\common\\The Isle"
+                ]
+                
+                for path in possible_legacy:
+                    if os.path.exists(path):
+                        self.legacy_path = path
+                        break
+                        
+                if not self.legacy_path:
+                    messagebox.showinfo(
+                        "Configuración Inicial",
+                        "Por favor selecciona la carpeta de The Isle Legacy"
+                    )
+                    self.set_legacy_path()
+
+            # Guardar configuración encontrada/seleccionada
+            self.save_config()
+                
         except Exception as e:
-            logging.error(f"Error al cargar configuración: {str(e)}")
-            self.pak_folder = None
+            logging.error(f"Error cargando configuración: {str(e)}")
+            messagebox.showerror("Error", f"Error cargando configuración: {str(e)}")
 
     # Añadir método para guardar configuración
     def save_config(self):
@@ -862,7 +916,34 @@ class IsleLauncher:
                 return
                 
             ip_address = ip.split(':')[0]
-            port = ip.split(':')[1]
+            port = int(ip.split(':')[1])
+            
+            # Query server info first
+            server_info = self.query_server_info(ip_address, port)
+            
+            result = [
+                f"Servidor: {server_info['name'] if server_info else 'Desconocido'}",
+                f"IP: {ip_address}",
+                f"Puerto: {port}",
+                "\nVerificación de Mods:"
+            ]
+
+            # If server has GitHub hint, use it
+            if server_info and server_info['github_url']:
+                try:
+                    # Download mods.txt from GitHub
+                    raw_url = f"https://raw.githubusercontent.com/{server_info['github_url']}/main/mods.txt"
+                    response = requests.get(raw_url, timeout=5)
+                    response.raise_for_status()
+                    
+                    with open('mods.txt', 'w') as f:
+                        f.write(response.text)
+                        
+                    result.append("\n✓ mods.txt encontrado en GitHub del servidor")
+                    # ... rest of verification logic ...
+                except requests.RequestException as e:
+                    result.append("\n✗ No se pudo obtener mods.txt del GitHub del servidor")
+                    logging.error(f"Error descargando mods.txt del GitHub del servidor: {e}")
             
             # 1. Detectar tipo de servidor
             server_type = "Local" if any(ip_address.startswith(prefix) for prefix in [
@@ -1169,6 +1250,50 @@ class IsleLauncher:
         except Exception as e:
             logging.error(f"Error descargando mods: {str(e)}")
             messagebox.showerror("Error", f"Error descargando mods: {str(e)}")
+
+    def query_server_info(self, ip, port):
+        """Query server using Steam A2S_INFO protocol"""
+        try:
+            # Create UDP socket
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sock.settimeout(A2S_TIMEOUT)
+            
+            # Send A2S_INFO query
+            sock.sendto(A2S_INFO, (ip, int(port)))
+            
+            # Receive response
+            data = sock.recvfrom(1400)[0]
+            
+            # Parse response
+            if data.startswith(b'\xFF\xFF\xFF\xFF\x49'):
+                # Skip header and response type
+                data = data[5:]
+                
+                # Parse server info
+                protocol = ord(data[0:1])
+                name = data[1:].split(b'\x00')[0].decode('utf-8')
+                map_name = data[1:].split(b'\x00')[1].decode('utf-8')
+                
+                # Check for GitHub hint in server name
+                github_url = None
+                if '[github=' in name.lower():
+                    start = name.lower().index('[github=') + 8
+                    end = name.index(']', start)
+                    github_url = name[start:end]
+                
+                return {
+                    'name': name,
+                    'map': map_name,
+                    'github_url': github_url
+                }
+                
+            return None
+            
+        except Exception as e:
+            logging.error(f"Error querying server: {str(e)}")
+            return None
+        finally:
+            sock.close()
 
 if __name__ == "__main__":
     try:
