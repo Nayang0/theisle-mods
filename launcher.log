@@ -1,2 +1,6 @@
 2025-03-06 01:25:31,301 - ERROR - Error actualizando mods: 'IsleLauncher' object has no attribute 'update_mod_list'
 2025-03-06 01:25:34,312 - ERROR - Error actualizando mods: 'IsleLauncher' object has no attribute 'update_mod_list'
+2025-03-06 01:50:50,992 - ERROR - Error en setup_gui: 'IsleLauncher' object has no attribute 'toggle_admin_features'
+2025-03-06 01:50:54,676 - ERROR - Error cargando servidores: 'IsleLauncher' object has no attribute 'server_listbox'
+2025-03-06 01:56:09,292 - ERROR - Error en setup_gui: 'IsleLauncher' object has no attribute 'on_server_select'
+2025-03-06 01:58:54,052 - ERROR - Error en setup_gui: 'IsleLauncher' object has no attribute 'on_server_select'
