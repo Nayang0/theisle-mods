@@ -70,40 +70,60 @@ class IsleLauncher:
             main_frame = ttk.Frame(self.root, padding="10")
             main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
             
+            # Añadir frame para rol de administrador
+            admin_frame = ttk.LabelFrame(main_frame, text="Rol de Usuario", padding="5")
+            admin_frame.grid(row=0, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=5)
+            
+            self.is_admin = tk.BooleanVar(value=False)
+            ttk.Checkbutton(
+                admin_frame, 
+                text="Soy administrador del servidor", 
+                variable=self.is_admin,
+                command=self.toggle_admin_features
+            ).pack(pady=5)
+
             # Lista de servidores
-            ttk.Label(main_frame, text="Servidores Guardados:").grid(row=0, column=0, columnspan=2, sticky=tk.W)
+            ttk.Label(main_frame, text="Servidores Guardados:").grid(row=1, column=0, columnspan=2, sticky=tk.W)
             self.server_listbox = tk.Listbox(main_frame, height=5)
-            self.server_listbox.grid(row=1, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=5)
+            self.server_listbox.grid(row=2, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=5)
             self.server_listbox.bind('<<ListboxSelect>>', self.on_server_select)
             
             # IP del servidor
-            ttk.Label(main_frame, text="IP del Servidor:").grid(row=2, column=0, sticky=tk.W)
+            ttk.Label(main_frame, text="IP del Servidor:").grid(row=3, column=0, sticky=tk.W)
             self.ip_entry = ttk.Entry(main_frame, width=30)
-            self.ip_entry.grid(row=2, column=1, padx=5, pady=5)
+            self.ip_entry.grid(row=3, column=1, padx=5, pady=5)
             
             # Lista de mods
-            ttk.Label(main_frame, text="Mods Disponibles:").grid(row=3, column=0, columnspan=2, sticky=tk.W)
+            ttk.Label(main_frame, text="Mods Disponibles:").grid(row=4, column=0, columnspan=2, sticky=tk.W)
             self.mod_frame = ttk.Frame(main_frame)
-            self.mod_frame.grid(row=4, column=0, columnspan=2, sticky=(tk.W, tk.E))
+            self.mod_frame.grid(row=5, column=0, columnspan=2, sticky=(tk.W, tk.E))
 
             # Botones
             button_frame = ttk.Frame(main_frame)
-            button_frame.grid(row=5, column=0, columnspan=2, pady=5)
+            button_frame.grid(row=6, column=0, columnspan=2, pady=5)
 
             # Crear dos filas de botones para mejor visibilidad
-            ttk.Button(button_frame, text="Generar Hashes", command=self.generate_hashes).grid(row=0, column=0, padx=5, pady=5)
+            self.hash_button = ttk.Button(
+                button_frame, 
+                text="Generar Hashes", 
+                command=self.generate_hashes,
+                state='disabled'  # Inicialmente deshabilitado
+            )
+            self.hash_button.grid(row=0, column=0, padx=5, pady=5)
+            
             ttk.Button(button_frame, text="Actualizar Mods", command=self.refresh_mods).grid(row=0, column=1, padx=5, pady=5)
-            ttk.Button(button_frame, text="Conectar", command=self.connect).grid(row=0, column=2, padx=5, pady=5)
-            ttk.Button(button_frame, text="Abrir Carpeta Paks", command=self.open_pak_folder).grid(row=0, column=3, padx=5, pady=5)
+            ttk.Button(button_frame, text="Descargar Mods", command=self.download_pending_mods).grid(row=0, column=2, padx=5, pady=5)
+            ttk.Button(button_frame, text="Conectar", command=self.connect).grid(row=0, column=3, padx=5, pady=5)
 
             ttk.Button(button_frame, text="Guardar Servidor", command=self.save_server).grid(row=1, column=0, padx=5, pady=5)
             ttk.Button(button_frame, text="Ver Log", command=self.view_log).grid(row=1, column=1, padx=5, pady=5)
             ttk.Button(button_frame, text="Configurar Legacy", command=self.set_legacy_path).grid(row=1, column=2, padx=5, pady=5)
             ttk.Button(button_frame, text="Configurar Paks", command=self.set_paks_path).grid(row=1, column=3, padx=5, pady=5)
+            ttk.Button(button_frame, text="Abrir Carpeta Paks", command=self.open_pak_folder).grid(row=1, column=4, padx=5, pady=5)
 
             # Después de los botones, añadir marco de ayuda
             help_frame = ttk.LabelFrame(main_frame, text="Guía de Botones", padding="5")
-            help_frame.grid(row=6, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=10)
+            help_frame.grid(row=7, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=10)
 
             # Textos de ayuda para cada botón
             helps = [
@@ -129,7 +149,7 @@ class IsleLauncher:
 
             # Después del marco de ayuda, añadir marco de tutorial
             tutorial_frame = ttk.LabelFrame(main_frame, text="Tutorial de Uso", padding="5")
-            tutorial_frame.grid(row=7, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=10)
+            tutorial_frame.grid(row=8, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=10)
 
             # Pasos del tutorial
             tutorial_steps = [
@@ -282,6 +302,12 @@ class IsleLauncher:
         """Genera hashes para los archivos en la carpeta mods"""
         mods_directory = os.path.join(os.path.dirname(__file__), 'mods')
         
+        # URLs de Google Drive
+        DRIVE_URLS = {
+            'TheIsle-Zzz_Yutty.pak': 'https://drive.google.com/uc?export=download&id=1o4p0B4NFdRUReQh5Z4wYPx457SJne_oE',
+            'TheIsle-Zzz_Yutty.sig': 'https://drive.google.com/uc?export=download&id=1wbeqgcmNn7gIR8BCRiBbz62rV1Typjbq'
+        }
+        
         # Crear la carpeta mods si no existe
         if not os.path.exists(mods_directory):
             os.makedirs(mods_directory)
@@ -294,7 +320,7 @@ class IsleLauncher:
             return
 
         try:
-            # Generar mods.txt
+            # Generar mods.txt con URLs reales
             with open('mods.txt', 'w') as f:
                 f.write("# filename hash download_url\n")
                 for filename in os.listdir(mods_directory):
@@ -302,8 +328,12 @@ class IsleLauncher:
                         filepath = os.path.join(mods_directory, filename)
                         with open(filepath, 'rb') as file:
                             file_hash = hashlib.sha256(file.read()).hexdigest()
-                        download_url = "https://example.com/" + filename
-                        f.write(f"{filename} {file_hash} {download_url}\n")
+                        # Usar URL real de Google Drive si está disponible
+                        download_url = DRIVE_URLS.get(filename, '')
+                        if download_url:
+                            f.write(f"{filename} {file_hash} {download_url}\n")
+                        else:
+                            logging.warning(f"No se encontró URL para {filename}")
             
             messagebox.showinfo("Éxito", "Archivo mods.txt generado exitosamente!")
             self.refresh_mods()  # Actualizar la lista de mods
@@ -318,44 +348,17 @@ class IsleLauncher:
                 messagebox.showerror("Error", "IP inválida")
                 return
 
-            # Verificar que existe la ruta de Legacy
+            # Verificar solo la ruta de Legacy
             game_exe = os.path.join(self.legacy_path, "TheIsle.exe")
             if not os.path.exists(game_exe):
                 messagebox.showerror("Error", "No se encuentra TheIsle.exe en la ruta configurada")
                 return
 
-            # Verificar mods
-            try:
-                response = requests.get(MODS_URL, timeout=5)
-                if response.status_code == 200:
-                    with open('mods.txt', 'w') as f:
-                        f.write(response.text)
-                    self.refresh_mods()
-                    
-                    missing_mods = []
-                    for filename, mod_info in self.mod_list.items():
-                        if self.check_mod_status(filename, mod_info['hash']) != "Verificado":
-                            missing_mods.append(filename)
-
-                    if missing_mods:
-                        if messagebox.askyesno("Mods Requeridos", 
-                            "Se requieren mods. ¿Deseas descargarlos automáticamente?"):
-                            self.download_mods(missing_mods)
-                        return
-            except:
-                logging.info("No se pudo obtener mods.txt del servidor")
-
-            # Lanzar el juego directamente con los parámetros
+            # Lanzar el juego directamente
             command = f'"{game_exe}" -log -USEALLAVAILABLECORES +connect {ip} +accept_responsibility -nosteam -game'
-            
-            # Log del comando
             logging.info(f"Lanzando Legacy: {command}")
             
-            # Cambiar al directorio del juego y ejecutar
-            current_dir = os.getcwd()
-            os.chdir(self.legacy_path)
-            subprocess.Popen(command, shell=True)
-            os.chdir(current_dir)
+            subprocess.Popen(command, shell=True, cwd=self.legacy_path)
 
         except Exception as e:
             logging.error(f"Error al conectar: {str(e)}")
@@ -364,33 +367,49 @@ class IsleLauncher:
     def download_mods(self, mod_list):
         """Descarga los mods requeridos desde Google Drive"""
         try:
+            if not self.pak_folder:
+                raise Exception("La carpeta Paks no está configurada")
+
             for mod_name in mod_list:
+                if mod_name not in self.mod_list:
+                    raise Exception(f"Mod no encontrado en la lista: {mod_name}")
+                    
                 mod_info = self.mod_list[mod_name]
                 url = mod_info['url']
                 
                 logging.info(f"Descargando {mod_name} desde {url}")
                 
-                # Descargar desde Google Drive
-                response = requests.get(url, stream=True, allow_redirects=True)
-                
-                # Verificar si es una página de confirmación de Google Drive
-                if 'Content-Disposition' not in response.headers:
-                    logging.warning("Detectada página de confirmación de Google Drive")
-                    # Extraer el ID de Google Drive de la URL
-                    file_id = url.split('id=')[1]
-                    # Construir URL directa
-                    url = f"https://drive.google.com/uc?export=download&confirm=t&id={file_id}"
+                # Manejar URL de Google Drive
+                if 'drive.google.com' in url:
+                    try:
+                        # Extraer ID de Google Drive
+                        file_id = url.split('id=')[1].split('&')[0]
+                        download_url = f"https://drive.google.com/uc?export=download&id={file_id}"
+                        
+                        # Primera solicitud para manejar archivos grandes
+                        session = requests.Session()
+                        response = session.get(download_url, stream=True)
+                        
+                        # Manejar confirmación para archivos grandes
+                        for key, value in response.cookies.items():
+                            if key.startswith('download_warning'):
+                                download_url += f"&confirm={value}"
+                                response = session.get(download_url, stream=True)
+                                break
+                                
+                    except Exception as e:
+                        raise Exception(f"Error procesando URL de Google Drive: {str(e)}")
+                else:
                     response = requests.get(url, stream=True)
                 
-                total_size = int(response.headers.get('content-length', 0))
-                
+                # Descargar archivo
                 filepath = os.path.join(self.pak_folder, mod_name)
                 with open(filepath, 'wb') as f:
                     for chunk in response.iter_content(chunk_size=8192):
                         if chunk:
                             f.write(chunk)
                 
-                # Verificar el archivo descargado
+                # Verificar hash después de la descarga
                 status = self.check_mod_status(mod_name, mod_info['hash'])
                 logging.info(f"Estado después de descarga: {status}")
                 
@@ -399,7 +418,6 @@ class IsleLauncher:
                 
                 # Actualizar estado en la interfaz
                 mod_info['status_label'].config(text="Verificado")
-                mod_info['status'] = "Verificado"
                 
                 # Forzar actualización visual
                 self.root.update()
@@ -408,6 +426,71 @@ class IsleLauncher:
             
         except Exception as e:
             logging.error(f"Error descargando mods: {str(e)}")
+            messagebox.showerror("Error", f"Error al descargar mods: {str(e)}")
+            return False
+        
+        return True
+
+    def download_file(self, filename, url, is_sig=False):
+        """Descarga mejorada desde Google Drive"""
+        try:
+            if 'drive.google.com' in url:
+                file_id = url.split('id=')[1].split('&')[0]
+                download_url = f"https://drive.google.com/uc?export=download&id={file_id}"
+                
+                session = requests.Session()
+                response = session.get(download_url, stream=True)
+                
+                # Manejar confirmación para archivos grandes
+                for key, value in response.cookies.items():
+                    if key.startswith('download_warning'):
+                        download_url += f"&confirm={value}"
+                        response = session.get(download_url, stream=True)
+                        break
+            else:
+                response = requests.get(url, stream=True)
+
+            filepath = os.path.join(self.pak_folder, filename)
+            with open(filepath, 'wb') as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    if chunk:
+                        f.write(chunk)
+                        
+            return True
+        except Exception as e:
+            logging.error(f"Error descargando {filename}: {str(e)}")
+            return False
+
+    def download_pending_mods(self):
+        """Descarga los mods pendientes"""
+        try:
+            if not self.pak_folder:
+                messagebox.showwarning(
+                    "Configuración Requerida",
+                    "Primero configura la carpeta Paks usando el botón 'Configurar Paks'"
+                )
+                return
+                
+            # Buscar mods no instalados o desactualizados
+            pending_mods = []
+            for filename, mod_info in self.mod_list.items():
+                status = self.check_mod_status(filename, mod_info['hash'])
+                if status in ["No instalado", "Desactualizado"]:
+                    pending_mods.append(filename)
+                    
+            if not pending_mods:
+                messagebox.showinfo("Info", "No hay mods pendientes de descargar")
+                return
+                
+            # Preguntar antes de descargar
+            if messagebox.askyesno(
+                "Descargar Mods", 
+                f"Se encontraron {len(pending_mods)} mods pendientes. ¿Descargar ahora?"
+            ):
+                self.download_mods(pending_mods)
+                
+        except Exception as e:
+            logging.error(f"Error al descargar mods pendientes: {str(e)}")
             messagebox.showerror("Error", f"Error al descargar mods: {str(e)}")
 
     # 1. Configuración persistente
@@ -482,14 +565,18 @@ class IsleLauncher:
         os.startfile(self.pak_folder)
 
     def load_servers(self):
-        """Carga la lista de servidores guardados"""
+        """Carga la lista de servidores con más información"""
         try:
             if os.path.exists(SERVERS_FILE):
                 with open(SERVERS_FILE, 'r') as f:
                     self.servers = json.load(f)
-                self.update_server_list()
+                self.server_listbox.delete(0, tk.END)
+                for ip in self.servers:
+                    info = self.servers[ip]
+                    display = f"{info.get('name', 'Unknown')} - {ip}"
+                    self.server_listbox.insert(tk.END, display)
         except Exception as e:
-            logging.error(f"Error al cargar servidores: {str(e)}")
+            logging.error(f"Error cargando servidores: {str(e)}")
 
     def save_server(self):
         """Guarda el servidor actual en la lista"""
@@ -521,6 +608,18 @@ class IsleLauncher:
             logging.error(error_msg)
             messagebox.showerror("Error", error_msg)
 
+    def save_last_server(self):
+        """Guarda información del último servidor usado"""
+        try:
+            with open("last_server.json", 'w') as f:
+                json.dump({
+                    "ip": self.ip_entry.get().strip(),
+                    "mods": list(self.mod_list.keys()),
+                    "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
+                }, f, indent=4)
+        except Exception as e:
+            logging.error(f"Error guardando último servidor: {str(e)}")
+
     def on_server_select(self, event):
         """Maneja la selección de un servidor de la lista"""
         try:
@@ -550,6 +649,17 @@ class IsleLauncher:
                 self.server_listbox.insert(tk.END, ip)
         except Exception as e:
             logging.error(f"Error al actualizar lista de servidores: {str(e)}")
+
+    def update_mod_status(self, filename, status):
+        """Actualiza el estado visual de un mod"""
+        try:
+            if filename in self.mod_list:
+                self.mod_list[filename]['status_label'].config(text=status)
+                self.mod_list[filename]['status'] = status
+                # Forzar actualización visual
+                self.root.update_idletasks()
+        except Exception as e:
+            logging.error(f"Error actualizando estado de mod: {str(e)}")
 
 if __name__ == "__main__":
     try:

@@ -1,17 +1,33 @@
 import os
 import hashlib
+import json
+
+# URLs de los mods en Google Drive
+DRIVE_URLS = {
+    'TheIsle-Zzz_Yutty.pak': 'https://drive.google.com/uc?export=download&id=1o4p0B4NFdRUReQh5Z4wYPx457SJne_oE',
+    'TheIsle-Zzz_Yutty.sig': 'https://drive.google.com/uc?export=download&id=1wbeqgcmNn7gIR8BCRiBbz62rV1Typjbq'
+}
 
 def generate_hash(filepath):
     """Genera el hash SHA256 de un archivo"""
     try:
+        print(f"Calculando hash para: {filepath}")
+        file_size = os.path.getsize(filepath)
+        print(f"Tamaño del archivo: {file_size} bytes")
+        
         with open(filepath, 'rb') as f:
-            return hashlib.sha256(f.read()).hexdigest()
+            # Leer todo el archivo en memoria
+            content = f.read()
+            # Calcular hash
+            file_hash = hashlib.sha256(content).hexdigest()
+            print(f"Hash calculado: {file_hash}")
+            return file_hash
     except Exception as e:
         print(f"Error al procesar {filepath}: {str(e)}")
         return None
 
 def generate_mod_list(directory):
-    """Genera el archivo mods.txt con los hashes de los archivos .pak y .sig"""
+    """Genera el archivo mods.txt con los hashes de los archivos"""
     with open('mods.txt', 'w') as f:
         f.write("# filename hash download_url\n")
         
@@ -20,28 +36,16 @@ def generate_mod_list(directory):
                 filepath = os.path.join(directory, filename)
                 file_hash = generate_hash(filepath)
                 if file_hash:
-                    # Por ahora usamos una URL de ejemplo
-                    download_url = "https://example.com/" + filename
+                    # Usar URL de Google Drive si está disponible
+                    download_url = DRIVE_URLS.get(filename, "URL_NO_CONFIGURADA")
                     f.write(f"{filename} {file_hash} {download_url}\n")
+                    print(f"Procesado: {filename}")
+                    print(f"Hash: {file_hash}")
+                    print(f"URL: {download_url}\n")
 
 if __name__ == "__main__":
-    # Usar la carpeta mods por defecto
-    default_mods_directory = os.path.join(os.path.dirname(__file__), 'mods')
-    
-    # Crear la carpeta mods si no existe
-    if not os.path.exists(default_mods_directory):
-        os.makedirs(default_mods_directory)
-        print(f"Carpeta 'mods' creada en: {default_mods_directory}")
-        print("Por favor, coloca tus archivos .pak y .sig en esta carpeta")
-        exit()
-
-    # Verificar si hay archivos en la carpeta
-    if not any(f.endswith(('.pak', '.sig')) for f in os.listdir(default_mods_directory)):
-        print("No se encontraron archivos .pak o .sig en la carpeta mods")
-        print(f"Por favor, coloca tus archivos en: {default_mods_directory}")
-        exit()
-
-    # Generar hashes
-    generate_mod_list(default_mods_directory)
-    print(f"Archivo mods.txt generado exitosamente!")
-    print("Los hashes han sido calculados para todos los archivos .pak y .sig")
+    mods_directory = os.path.join(os.path.dirname(__file__), 'mods')
+    if not os.path.exists(mods_directory):
+        os.makedirs(mods_directory)
+        print("Carpeta 'mods' creada")
+    generate_mod_list(mods_directory)
