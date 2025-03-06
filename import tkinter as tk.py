@@ -10,6 +10,10 @@ import logging
 import time  
 import webbrowser
 from tkinter import simpledialog
+import shutil
+import re
+import zipfile
+
 
 # Configuraciones globales
 DEFAULT_PAK_FOLDER = r"C:\Program Files (x86)\Steam\steamapps\common\The Isle\TheIsle\Content\Paks"
@@ -21,6 +25,7 @@ STEAM_APPID = "376210"
 DEFAULT_LEGACY_PATH = r"C:\Program Files (x86)\Steam\steamapps\common\The Isle"
 STEAM_URL_PROTOCOL = "steam://run/376210//"
 MODS_URL = "https://raw.githubusercontent.com/Nayang0/theisle-mods/main/mods.txt"  # URL donde estará el mods.txt del servidor
+CREATORS_FILE = "creators.json"
 
 # Configurar logging
 logging.basicConfig(
@@ -47,6 +52,7 @@ class IsleLauncher:
             self.downloading = False
             self.mod_list = {}
             self.servers = {}
+            self.creators = self.load_creators()
             
             # Cargar configuración
             self.load_config()
@@ -114,40 +120,32 @@ class IsleLauncher:
             button_frame.grid(row=6, column=0, columnspan=2, pady=5)
 
             # Primera fila de botones
-            ttk.Button(button_frame, text="Actualizar Mods", 
-                      command=self.refresh_mods).grid(row=0, column=0, padx=5, pady=5)
-            ttk.Button(button_frame, text="Descargar Mods", 
-                      command=self.download_pending_mods).grid(row=0, column=1, padx=5, pady=5)
+            ttk.Button(button_frame, text="Creador", 
+                      command=self.add_creator).grid(row=0, column=0, padx=5, pady=5)
+            ttk.Button(button_frame, text="Links Mods", 
+                      command=self.show_creator_mods).grid(row=0, column=1, padx=5, pady=5)
             ttk.Button(button_frame, text="Conectar", 
                       command=self.connect).grid(row=0, column=2, padx=5, pady=5)
-
-            # Segunda fila de botones
-            ttk.Button(button_frame, text="Verificar Servidor", 
-                      command=self.verify_server).grid(row=1, column=0, padx=5, pady=5)
-            ttk.Button(button_frame, text="Guardar Servidor", 
-                      command=self.save_server).grid(row=1, column=1, padx=5, pady=5)
             ttk.Button(button_frame, text="Ver Log", 
-                      command=self.view_log).grid(row=1, column=2, padx=5, pady=5)
+                      command=self.view_log).grid(row=0, column=2, padx=5, pady=5)
 
-            # Tercera fila de botones (configuración)
+            # Segunda fila de botones (configuración)
             ttk.Button(button_frame, text="Configurar Legacy", 
-                      command=self.set_legacy_path).grid(row=2, column=0, padx=5, pady=5)
+                      command=self.set_legacy_path).grid(row=1, column=0, padx=5, pady=5)
             ttk.Button(button_frame, text="Configurar Paks", 
-                      command=self.set_paks_path).grid(row=2, column=1, padx=5, pady=5)
+                      command=self.set_paks_path).grid(row=1, column=1, padx=5, pady=5)
             ttk.Button(button_frame, text="Abrir Carpeta Paks", 
-                      command=self.open_pak_folder).grid(row=2, column=2, padx=5, pady=5)
+                      command=self.open_pak_folder).grid(row=1, column=2, padx=5, pady=5)
 
             # Después de los botones, añadir marco de ayuda
             help_frame = ttk.LabelFrame(main_frame, text="Guía de Botones", padding="5")
             help_frame.grid(row=7, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=10)
 
-            # Textos de ayuda para cada botón
+            # Textos de ayuda actualizados para cada botón
             helps = [
-                ("Verificar Servidor", "Analiza si el servidor requiere mods y muestra su estado"),
-                ("Actualizar Mods", "Verifica el estado de los mods instalados"),
-                ("Descargar Mods", "Descarga los mods faltantes o desactualizados"),
+                ("Links Mods", "Muestra los mods disponibles de los creadores registrados"),
+                ("Creador", "Registra tu repositorio de mods si eres creador"),
                 ("Conectar", "Inicia el juego y conecta al servidor seleccionado"),
-                ("Guardar Servidor", "Guarda la IP actual en la lista de servidores"),
                 ("Ver Log", "Muestra el registro de errores y eventos"),
                 ("Configurar Legacy", "Selecciona la ubicación del ejecutable de Legacy"),
                 ("Configurar Paks", "Selecciona la carpeta donde se instalan los mods"),
@@ -168,13 +166,13 @@ class IsleLauncher:
             tutorial_frame = ttk.LabelFrame(main_frame, text="Tutorial de Uso", padding="5")
             tutorial_frame.grid(row=8, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=10)
 
-            # Pasos del tutorial
+            # Tutorial actualizado con los nuevos pasos
             tutorial_steps = [
                 ("Paso 1", "Configura la carpeta Paks usando 'Configurar Paks' (Importante)"),
                 ("Paso 2", "Configura la ruta de Legacy usando 'Configurar Legacy' (Importante)"),
                 ("Paso 3", "Ingresa la IP del servidor o selecciona uno guardado"),
-                ("Paso 4", "Usa 'Verificar Servidor' para comprobar si necesita mods"),
-                ("Paso 5", "Si requiere mods, usa 'Actualizar Mods' y luego 'Descargar Mods'"),
+                ("Paso 4", "Si necesitas mods, usa el botón 'Links Mods' para ver los disponibles"),
+                ("Paso 5", "Selecciona el creador y descarga los mods necesarios"),
                 ("Paso 6", "Una vez todo esté listo, presiona 'Conectar' para unirte al servidor")
             ]
 
@@ -192,10 +190,9 @@ class IsleLauncher:
             mods_help_frame = ttk.LabelFrame(main_frame, text="Guía de Mods Disponibles", padding="5")
             mods_help_frame.grid(row=9, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=10)
 
-            # Información de mods
+            # Información de mods actualizada
             mods_info = [
-                ("TheIsle-Zzz_Yutty.pak/.sig", "es un ejemplo de como se verian Los Mods requeridos para algunos servidores."),
-                # Eliminar las otras entradas que no usamos
+                ("TheIsle-Zzz_Yutty.pak/.sig", "Mod oficial para servidores modificados. Se descarga desde los Links Mods."),
             ]
 
             for i, (mod_name, description) in enumerate(mods_info):
@@ -411,31 +408,32 @@ class IsleLauncher:
         return True
 
     def download_file(self, filename, url, is_sig=False):
-        """Descarga mejorada desde Google Drive"""
+        """Descarga mejorada con soporte para ZIP"""
         try:
-            if 'drive.google.com' in url:
-                file_id = url.split('id=')[1].split('&')[0]
-                download_url = f"https://drive.google.com/uc?export=download&id={file_id}"
-                
-                session = requests.Session()
-                response = session.get(download_url, stream=True)
-                
-                # Manejar confirmación para archivos grandes
-                for key, value in response.cookies.items():
-                    if key.startswith('download_warning'):
-                        download_url += f"&confirm={value}"
-                        response = session.get(download_url, stream=True)
-                        break
-            else:
-                response = requests.get(url, stream=True)
-
-            filepath = os.path.join(self.pak_folder, filename)
-            with open(filepath, 'wb') as f:
+            response = requests.get(url, stream=True)
+            temp_path = os.path.join(self.pak_folder, "temp_download")
+            
+            # Descargar archivo
+            with open(temp_path, 'wb') as f:
                 for chunk in response.iter_content(chunk_size=8192):
                     if chunk:
                         f.write(chunk)
                         
+            # Verificar si es ZIP
+            if zipfile.is_zipfile(temp_path):
+                with zipfile.ZipFile(temp_path) as zip_ref:
+                    # Extraer solo .pak y .sig
+                    for file in zip_ref.namelist():
+                        if file.endswith(('.pak', '.sig')):
+                            zip_ref.extract(file, self.pak_folder)
+                os.remove(temp_path)
+                return True
+                
+            # Si no es ZIP, mover al destino final
+            final_path = os.path.join(self.pak_folder, filename)
+            shutil.move(temp_path, final_path)
             return True
+            
         except Exception as e:
             logging.error(f"Error descargando {filename}: {str(e)}")
             return False
@@ -775,21 +773,36 @@ class IsleLauncher:
             if not ip_port:
                 return None
                 
-            logging.info(f"Verificando mods para servidor Legacy: {ip_port}")
+            logging.info(f"Verificando mods para servidor: {ip_port}")
             
-            # Leer archivo mods.txt global
+            # 1. Intentar obtener mods.txt del servidor
+            try:
+                ip = ip_port.split(':')[0]
+                url = f"http://{ip}/mods.txt"
+                response = requests.get(url, timeout=5)
+                response.raise_for_status()
+                content = response.text.splitlines()
+                
+                # Verificar si primera línea tiene el nombre del servidor
+                if content and content[0].startswith("ServerName:"):
+                    server_name = content[0].split("ServerName:")[1].strip()
+                    logging.info(f"Nombre del servidor detectado: {server_name}")
+                    content = content[1:]  # Remover primera línea
+                
+                return "\n".join(content)
+                
+            except requests.RequestException as e:
+                logging.info(f"No se pudo obtener mods.txt del servidor: {e}")
+                
+            # 2. Usar mods.txt local si existe
             if os.path.exists('mods.txt'):
-                logging.info("Leyendo mods.txt global")
                 with open('mods.txt', 'r') as f:
-                    mods_content = f.read()
-                    if mods_content.strip() and not mods_content.startswith('#'):
-                        return mods_content
-                        
-            logging.info("No se encontraron mods requeridos")
-            return "# filename hash download_url\n# Este servidor no requiere mods"
+                    return f.read()
+                    
+            return "# Este servidor no requiere mods"
                 
         except Exception as e:
-            logging.error(f"Error verificando mods para {ip_port}: {str(e)}")
+            logging.error(f"Error verificando mods: {str(e)}")
             return None
 
     def update_mod_list(self, mods_text):
@@ -856,12 +869,7 @@ class IsleLauncher:
                 '127.0.0.1', 'localhost', '192.168.', '190.', '10.'
             ] + [f'172.{i}.' for i in range(16, 32)]) else "Web"
 
-            # 2. Verificar carpeta Paks
-            if not self.pak_folder:
-                messagebox.showwarning("Advertencia", "Configura primero la carpeta Paks")
-                return
-
-            # 3. Preparar resultado
+            # 2. Preparar resultado
             result = [
                 f"Tipo de Servidor: {server_type}",
                 f"IP: {ip_address}",
@@ -869,27 +877,58 @@ class IsleLauncher:
                 "\nVerificación de Mods:"
             ]
 
-            # 4. Verificar los archivos físicamente
-            pak_exists = os.path.exists(os.path.join(self.pak_folder, "TheIsle-Zzz_Yutty.pak"))
-            sig_exists = os.path.exists(os.path.join(self.pak_folder, "TheIsle-Zzz_Yutty.sig"))
+            # 3. Intentar múltiples rutas para mods.txt
+            mods_found = False
+            try:
+                possible_urls = [
+                    f"http://{ip_address}/mods.txt",
+                    f"http://{ip_address}:80/mods.txt",
+                    f"http://{ip_address}:{port}/mods.txt"
+                ]
+                
+                for url in possible_urls:
+                    try:
+                        logging.info(f"Intentando obtener mods.txt de: {url}")
+                        response = requests.get(url, timeout=3)
+                        if response.status_code == 200:
+                            with open('mods.txt', 'w') as f:
+                                f.write(response.text)
+                            mods_found = True
+                            result.append(f"\n✓ mods.txt encontrado en {url}")
+                            break
+                    except:
+                        continue
 
-            # 5. Verificar si el servidor tiene mods.txt
-            requires_mods = False
+                if not mods_found:
+                    result.append("\n✗ No se encontró mods.txt en el servidor")
+                    logging.info("No se encontró mods.txt en ninguna URL")
+
+            except Exception as e:
+                logging.error(f"Error verificando URLs: {str(e)}")
+
+            # 4. Verificar si hay mods.txt local
             if os.path.exists('mods.txt'):
                 with open('mods.txt', 'r') as f:
                     content = f.read().strip()
                     if content and not content.startswith('#'):
-                        requires_mods = True
-                        result.append("\nServidor con Mods:")
-                        # Mostrar archivos requeridos
-                        result.append("• TheIsle-Zzz_Yutty.pak")
-                        result.append("• TheIsle-Zzz_Yutty.sig")
-                        result.append("\nEstado de Instalación:")
-                        result.append("✓ TheIsle-Zzz_Yutty.pak" if pak_exists else "✗ TheIsle-Zzz_Yutty.pak (Falta)")
-                        result.append("✓ TheIsle-Zzz_Yutty.sig" if sig_exists else "✗ TheIsle-Zzz_Yutty.sig (Falta)")
-                    else:
-                        result.append("\n✓ Este servidor NO requiere mods")
-                        result.append("Puedes conectarte directamente")
+                        mods_found = True
+                        if not result[-1].startswith('✓'):
+                            result.append("\n✓ Usando mods.txt local")
+
+            # 5. Verificar archivos si se encontraron mods
+            if mods_found:
+                result.append("\nMods requeridos:")
+                with open('mods.txt', 'r') as f:
+                    for line in f:
+                        if line.startswith('#') or not line.strip():
+                            continue
+                        try:
+                            filename = line.split()[0]
+                            if filename.endswith(('.pak', '.sig')):
+                                file_exists = os.path.exists(os.path.join(self.pak_folder, filename))
+                                result.append(f"{'✓' if file_exists else '✗'} {filename}")
+                        except:
+                            continue
             else:
                 result.append("\n✓ Este servidor NO requiere mods")
                 result.append("Puedes conectarte directamente")
@@ -904,6 +943,232 @@ class IsleLauncher:
         except Exception as e:
             logging.error(f"Error verificando servidor: {str(e)}")
             messagebox.showerror("Error", f"Error al verificar servidor: {str(e)}")
+
+    def download_from_github(self):
+        """Descarga mods desde el link de GitHub"""
+        try:
+            # Pedir URL de GitHub
+            url = simpledialog.askstring(
+                "Ingresar Link",
+                "Ingrese el link del archivo mods.txt en GitHub:",
+                parent=self.root
+            )
+            
+            if not url:
+                return
+                
+            # Descargar mods.txt
+            try:
+                response = requests.get(url, timeout=5)
+                response.raise_for_status()
+                
+                # Guardar mods.txt
+                with open('mods.txt', 'w') as f:
+                    f.write(response.text)
+                    
+                # Procesar y descargar archivos
+                mods_to_download = []
+                with open('mods.txt', 'r') as f:
+                    for line in f:
+                        if line.startswith('#') or not line.strip():
+                            continue
+                        try:
+                            filename, file_hash, download_url = line.strip().split()
+                            mods_to_download.append((filename, download_url))
+                        except:
+                            continue
+                
+                if not mods_to_download:
+                    messagebox.showwarning("Advertencia", "No se encontraron mods para descargar")
+                    return
+                    
+                # Confirmar descarga
+                if messagebox.askyesno(
+                    "Descargar Mods",
+                    f"Se encontraron {len(mods_to_download)} archivos para descargar.\n¿Proceder?"
+                ):
+                    for filename, url in mods_to_download:
+                        self.download_file(filename, url)
+                    messagebox.showinfo("Éxito", "Mods descargados correctamente")
+                        
+            except Exception as e:
+                messagebox.showerror("Error", f"Error descargando mods: {str(e)}")
+                
+        except Exception as e:
+            logging.error(f"Error en descarga desde GitHub: {str(e)}")
+            messagebox.showerror("Error", f"Error: {str(e)}")
+
+    def load_creators(self):
+        """Carga la lista de creadores"""
+        try:
+            if os.path.exists(CREATORS_FILE):
+                with open(CREATORS_FILE, 'r') as f:
+                    return json.load(f)
+            return {}
+        except Exception as e:
+            logging.error(f"Error cargando creadores: {str(e)}")
+            return {}
+
+    def add_creator(self):
+        """Ventana para agregar nuevo creador"""
+        try:
+            # Preguntar si es creador
+            if not messagebox.askyesno(
+                "Verificación",
+                "¿Eres creador de mods?",
+                icon='question'
+            ):
+                return
+                
+            # Pedir datos del creador
+            dialog = tk.Toplevel(self.root)
+            dialog.title("Agregar Creador")
+            dialog.geometry("400x200")
+            
+            ttk.Label(dialog, text="Nombre del Creador:").pack(pady=5)
+            name_entry = ttk.Entry(dialog, width=40)
+            name_entry.pack(pady=5)
+            
+            ttk.Label(dialog, text="URL del Repositorio:").pack(pady=5)
+            url_entry = ttk.Entry(dialog, width=40)
+            url_entry.pack(pady=5)
+            
+            def save_creator():
+                name = name_entry.get().strip()
+                url = url_entry.get().strip()
+                
+                if not name or not url:
+                    messagebox.showerror("Error", "Complete todos los campos")
+                    return
+                    
+                self.creators[name] = url
+                with open(CREATORS_FILE, 'w') as f:
+                    json.dump(self.creators, f, indent=4)
+                
+                messagebox.showinfo("Éxito", "Creador agregado correctamente")
+                dialog.destroy()
+                
+            ttk.Button(dialog, text="Guardar", command=save_creator).pack(pady=20)
+            
+        except Exception as e:
+            logging.error(f"Error agregando creador: {str(e)}")
+            messagebox.showerror("Error", f"Error: {str(e)}")
+
+    def show_creator_mods(self):
+        """Muestra ventana con botones para cada creador"""
+        try:
+            if not self.creators:
+                messagebox.showinfo("Info", "No hay creadores registrados")
+                return
+                
+            dialog = tk.Toplevel(self.root)
+            dialog.title("Seleccionar Mods")
+            dialog.geometry("400x400")
+            
+            # Frame con scroll para los botones
+            canvas = tk.Canvas(dialog)
+            scrollbar = ttk.Scrollbar(dialog, orient="vertical", command=canvas.yview)
+            scrollable_frame = ttk.Frame(canvas)
+            
+            scrollable_frame.bind(
+                "<Configure>",
+                lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+            )
+            
+            canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+            canvas.configure(yscrollcommand=scrollbar.set)
+            
+            # Crear botón para cada creador
+            for creator_name, repo_url in self.creators.items():
+                ttk.Button(
+                    scrollable_frame,
+                    text=f"Descargar Mods de {creator_name}",
+                    command=lambda url=repo_url: self.download_creator_mods(url)
+                ).pack(fill="x", padx=5, pady=2)
+                
+            canvas.pack(side="left", fill="both", expand=True)
+            scrollbar.pack(side="right", fill="y")
+            
+        except Exception as e:
+            logging.error(f"Error mostrando mods: {str(e)}")
+            messagebox.showerror("Error", f"Error: {str(e)}")
+
+    def download_creator_mods(self, repo_url):
+        """Descarga los mods desde el repositorio de GitHub"""
+        try:
+            # Verificar que la carpeta Paks esté configurada
+            if not self.pak_folder:
+                messagebox.showerror("Error", "Primero configura la carpeta Paks")
+                return
+
+            # Construir URL correcta para el raw de GitHub
+            # Convertir URL de repo a raw content
+            raw_url = repo_url.replace("github.com", "raw.githubusercontent.com")
+            if raw_url.endswith(".git"):
+                raw_url = raw_url[:-4]
+            mods_url = f"{raw_url}/main/mods.txt"
+
+            logging.info(f"Intentando descargar mods.txt desde: {mods_url}")
+            
+            # Descargar mods.txt
+            response = requests.get(mods_url)
+            response.raise_for_status()
+            
+            with open('mods.txt', 'w') as f:
+                f.write(response.text)
+            
+            # Procesar mods.txt y descargar archivos
+            mods_to_download = []
+            with open('mods.txt', 'r') as f:
+                for line in f:
+                    if line.startswith('#') or not line.strip():
+                        continue
+                    try:
+                        filename, file_hash, download_url = line.strip().split()
+                        mods_to_download.append({
+                            'filename': filename,
+                            'hash': file_hash,
+                            'url': download_url
+                        })
+                    except ValueError:
+                        continue
+
+            if not mods_to_download:
+                messagebox.showwarning("Advertencia", "No se encontraron mods para descargar")
+                return
+
+            # Mostrar archivos encontrados y confirmar descarga
+            files_text = "\n".join([f"• {mod['filename']}" for mod in mods_to_download])
+            if not messagebox.askyesno(
+                "Confirmar Descarga",
+                f"Se encontraron los siguientes archivos:\n\n{files_text}\n\n¿Descargar ahora?"
+            ):
+                return
+
+            # Descargar cada archivo
+            for mod in mods_to_download:
+                try:
+                    logging.info(f"Descargando {mod['filename']}...")
+                    if self.download_file(mod['filename'], mod['url']):
+                        # Verificar hash después de la descarga
+                        downloaded_path = os.path.join(self.pak_folder, mod['filename'])
+                        with open(downloaded_path, 'rb') as f:
+                            file_hash = hashlib.sha256(f.read()).hexdigest()
+                        if file_hash.lower() == mod['hash'].lower():
+                            logging.info(f"✓ {mod['filename']} verificado correctamente")
+                        else:
+                            logging.warning(f"⚠ {mod['filename']} hash no coincide")
+                except Exception as e:
+                    logging.error(f"Error descargando {mod['filename']}: {str(e)}")
+
+            messagebox.showinfo("Éxito", "Descarga de mods completada")
+
+        except requests.exceptions.RequestException as e:
+            logging.error(f"Error de red: {str(e)}")
+            messagebox.showerror("Error", "No se pudo acceder al repositorio")
+        except Exception as e:
+            logging.error(f"Error descargando mods: {str(e)}")
+            messagebox.showerror("Error", f"Error descargando mods: {str(e)}")
 
 if __name__ == "__main__":
     try:
