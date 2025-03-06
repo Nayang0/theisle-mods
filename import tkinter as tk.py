@@ -662,17 +662,68 @@ class IsleLauncher:
             logging.error(f"Error actualizando estado de mod: {str(e)}")
 
     def toggle_admin_features(self):
-        """Habilita/deshabilita características de administrador"""
+        """Habilita/deshabilita características de administrador con verificación de clave"""
         try:
             if self.is_admin.get():
-                self.hash_button.config(state='normal')
-                logging.info("Modo administrador activado")
+                # Crear diálogo para la clave
+                password_dialog = tk.Toplevel(self.root)
+                password_dialog.title("Verificación de Administrador")
+                password_dialog.geometry("300x150")
+                password_dialog.resizable(False, False)
+                password_dialog.transient(self.root)
+                
+                # Centrar la ventana
+                password_dialog.geometry("+%d+%d" % (
+                    self.root.winfo_rootx() + 50,
+                    self.root.winfo_rooty() + 50
+                ))
+                
+                # Frame principal
+                main_frame = ttk.Frame(password_dialog, padding="20")
+                main_frame.pack(fill=tk.BOTH, expand=True)
+                
+                # Label y entrada para la clave
+                ttk.Label(main_frame, text="Ingrese la clave de administrador:").pack(pady=5)
+                password_entry = ttk.Entry(main_frame, show="*")
+                password_entry.pack(pady=5)
+                password_entry.focus()
+                
+                def verify_password():
+                    # Clave de administrador (cámbiala por la que desees)
+                    ADMIN_PASSWORD = "AVA"
+                    
+                    if password_entry.get() == ADMIN_PASSWORD:
+                        self.hash_button.config(state='normal')
+                        logging.info("Modo administrador activado")
+                        password_dialog.destroy()
+                    else:
+                        messagebox.showerror("Error", "Clave incorrecta")
+                        self.is_admin.set(False)
+                        password_dialog.destroy()
+                
+                # Botones
+                button_frame = ttk.Frame(main_frame)
+                button_frame.pack(pady=10)
+                
+                ttk.Button(button_frame, text="Aceptar", command=verify_password).pack(side=tk.LEFT, padx=5)
+                ttk.Button(button_frame, text="Cancelar", command=lambda: [
+                    password_dialog.destroy(),
+                    self.is_admin.set(False)
+                ]).pack(side=tk.LEFT, padx=5)
+                
+                # Hacer la ventana modal
+                password_dialog.grab_set()
+                password_dialog.focus_set()
+                password_dialog.wait_window()
+                
             else:
                 self.hash_button.config(state='disabled')
                 logging.info("Modo administrador desactivado")
+                
         except Exception as e:
             logging.error(f"Error al cambiar rol: {str(e)}")
             messagebox.showerror("Error", f"Error al cambiar rol: {str(e)}")
+            self.is_admin.set(False)
 
 if __name__ == "__main__":
     try:
