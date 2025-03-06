@@ -1,14 +1,2 @@
-2025-03-05 23:09:24,500 - ERROR - Error descargando mods: Error verificando TheIsle-Zzz_Yutty.pak después de la descarga
-2025-03-05 23:09:50,216 - ERROR - Error descargando mods: Error verificando TheIsle-Zzz_Yutty.pak después de la descarga
-2025-03-05 23:09:56,105 - ERROR - Error descargando mods: Error verificando TheIsle-Zzz_Yutty.pak después de la descarga
-2025-03-05 23:15:19,959 - ERROR - Error descargando mods: list index out of range
-2025-03-05 23:21:23,702 - ERROR - Error descargando mods: Hash no coincide para TheIsle-Zzz_Yutty.pak
-2025-03-05 23:21:34,290 - ERROR - Error descargando mods: Hash no coincide para TheIsle-Zzz_Yutty.pak
-2025-03-05 23:29:00,709 - ERROR - Error descargando mods: Hash no coincide para TheIsle-Zzz_Yutty.pak
-2025-03-05 23:29:36,799 - ERROR - Error descargando mods: Hash no coincide para TheIsle-Zzz_Yutty.pak
-2025-03-05 23:29:42,318 - ERROR - Error descargando mods: Hash no coincide para TheIsle-Zzz_Yutty.pak
-2025-03-05 23:29:49,441 - ERROR - Error descargando mods: Hash no coincide para TheIsle-Zzz_Yutty.pak
-2025-03-05 23:44:11,580 - ERROR - Error descargando mods: Hash no coincide para TheIsle-Zzz_Yutty.pak
-2025-03-05 23:44:23,225 - ERROR - Error descargando mods: Hash no coincide para TheIsle-Zzz_Yutty.pak
-2025-03-06 00:46:08,726 - ERROR - Error en setup_gui: 'IsleLauncher' object has no attribute 'toggle_admin_features'
-2025-03-06 00:46:18,755 - ERROR - Error cargando servidores: 'IsleLauncher' object has no attribute 'server_listbox'
+2025-03-06 01:25:31,301 - ERROR - Error actualizando mods: 'IsleLauncher' object has no attribute 'update_mod_list'
+2025-03-06 01:25:34,312 - ERROR - Error actualizando mods: 'IsleLauncher' object has no attribute 'update_mod_list'

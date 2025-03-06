@@ -176,89 +176,27 @@ class IsleLauncher:
             messagebox.showerror("Error", f"Error en la interfaz: {str(e)}")
 
     def refresh_mods(self):
-        """Actualiza la lista de mods disponibles"""
         try:
-            # Verificar que la ruta de Paks haya sido configurada
-            if not self.pak_folder:
+            # Obtiene IP del cuadro de entrada
+            ip_port = self.ip_entry.get().strip()
+            if not ip_port:
+                messagebox.showinfo("Info", "Selecciona un servidor primero")
+                return
+            
+            # Usa esta IP para buscar los mods
+            server_mods = self.get_server_mods(ip_port)
+            if not server_mods:
                 messagebox.showwarning(
-                    "Configuración Requerida",
-                    "¡Importante! Antes de continuar:\n\n"
-                    "1. Presiona el botón 'Configurar Paks'\n"
-                    "2. Selecciona la carpeta Paks de tu instalación\n\n"
-                    "Ruta típica:\n"
-                    "C:\\Program Files (x86)\\Steam\\steamapps\\common\\The Isle - legacy\\TheIsle\\Content\\Paks"
+                    "Error", 
+                    f"No se pudo obtener la lista de mods del servidor {ip_port}"
                 )
                 return
                 
-            # Verificar que la ruta existe
-            if not os.path.exists(self.pak_folder):
-                messagebox.showerror(
-                    "Error",
-                    f"La carpeta Paks configurada no existe:\n{self.pak_folder}\n\n"
-                    "Por favor, configura nuevamente la ruta usando el botón 'Configurar Paks'"
-                )
-                self.pak_folder = None  # Reset para forzar reconfiguración
-                return
-
-            # Log de verificación de ruta
-            logging.info(f"Verificando mods en ruta: {self.pak_folder}")
-
-            # Verificar y cargar mods.txt
-            if not os.path.exists('mods.txt'):
-                messagebox.showinfo("Info", "No hay lista de mods disponible")
-                return
-
-            # Limpiar frame existente
-            for widget in self.mod_frame.winfo_children():
-                widget.destroy()
-
-            # Reiniciar lista de mods
-            self.mod_list = {}
-            
-            # Verificar y cargar mods.txt
-            if not os.path.exists('mods.txt'):
-                messagebox.showinfo("Info", "No hay lista de mods disponible")
-                return
-
-            # Log de la ruta actual
-            logging.info(f"Ruta de Paks actual: {self.pak_folder}")
-            
-            with open('mods.txt', 'r') as f:
-                for line in f:
-                    if line.strip() and not line.startswith('#'):
-                        try:
-                            filename, hash_value, download_url = line.strip().split()
-                            
-                            frame = ttk.Frame(self.mod_frame)
-                            frame.pack(fill=tk.X, pady=2)
-                            
-                            var = tk.BooleanVar()
-                            ttk.Checkbutton(frame, variable=var).pack(side=tk.LEFT)
-                            ttk.Label(frame, text=filename).pack(side=tk.LEFT)
-                            
-                            # Verificar estado actual
-                            current_status = self.check_mod_status(filename, hash_value)
-                            status_label = ttk.Label(frame, text=current_status)
-                            status_label.pack(side=tk.RIGHT)
-                            
-                            # Guardar referencia
-                            self.mod_list[filename] = {
-                                'var': var,
-                                'hash': hash_value,
-                                'url': download_url,
-                                'status_label': status_label,
-                                'status': current_status  # Guardar estado actual
-                            }
-                            
-                        except ValueError as e:
-                            logging.error(f"Error en formato de línea: {line.strip()}")
-                            continue
-            
-            # Forzar actualización visual
-            self.root.update()
+            # Actualizar interfaz con los mods requeridos
+            self.update_mod_list(server_mods)
             
         except Exception as e:
-            logging.error(f"Error al actualizar mods: {str(e)}")
+            logging.error(f"Error actualizando mods: {str(e)}")
             messagebox.showerror("Error", f"Error al actualizar mods: {str(e)}")
 
     def check_mod_status(self, filename, expected_hash):
@@ -621,13 +559,24 @@ class IsleLauncher:
             logging.error(f"Error guardando último servidor: {str(e)}")
 
     def on_server_select(self, event):
-        """Maneja la selección de un servidor de la lista"""
         try:
             selection = self.server_listbox.curselection()
             if selection:
-                ip = list(self.servers.keys())[selection[0]]
+                selected_text = self.server_listbox.get(selection[0])
+                
+                # Extrae IP:puerto y lo coloca en el cuadro de entrada
+                if " - " in selected_text:
+                    ip_port = selected_text.split(" - ")[1].strip()
+                else:
+                    ip_port = selected_text.strip()
+                
+                # Actualiza el cuadro de entrada
                 self.ip_entry.delete(0, tk.END)
-                self.ip_entry.insert(0, ip)
+                self.ip_entry.insert(0, ip_port)
+                
+                # Usa esta IP para buscar los mods
+                self.refresh_mods()
+                
         except Exception as e:
             logging.error(f"Error en selección de servidor: {str(e)}")
 
@@ -646,7 +595,9 @@ class IsleLauncher:
         try:
             self.server_listbox.delete(0, tk.END)
             for ip in self.servers:
-                self.server_listbox.insert(tk.END, ip)
+                info = self.servers[ip]
+                display = f"{info.get('name', 'Unknown')} - {ip}"
+                self.server_listbox.insert(tk.END, display)
         except Exception as e:
             logging.error(f"Error al actualizar lista de servidores: {str(e)}")
 
@@ -724,6 +675,89 @@ class IsleLauncher:
             logging.error(f"Error al cambiar rol: {str(e)}")
             messagebox.showerror("Error", f"Error al cambiar rol: {str(e)}")
             self.is_admin.set(False)
+
+    def get_server_mods(self, ip_port):
+        """Obtiene la lista de mods requeridos del servidor específico"""
+        try:
+            if not ip_port:
+                return None
+                
+            logging.info(f"Verificando mods para servidor: {ip_port}")
+            ip = ip_port.split(':')[0]
+            
+            # Intentar obtener mods.txt del servidor
+            try:
+                url = f"http://{ip}/mods.txt"
+                logging.info(f"Intentando obtener mods.txt desde: {url}")
+                response = requests.get(url, timeout=3)
+                
+                if response.status_code == 200:
+                    logging.info("mods.txt obtenido del servidor correctamente")
+                    return response.text
+                    
+            except requests.RequestException as e:
+                logging.warning(f"No se pudo obtener mods.txt del servidor: {e}")
+            
+            # Si no se puede obtener del servidor, usar archivo local
+            if os.path.exists('mods.txt'):
+                logging.info("Usando mods.txt local como respaldo")
+                with open('mods.txt', 'r') as f:
+                    return f.read()
+            
+            logging.error("No se pudo obtener lista de mods")
+            return None
+                
+        except Exception as e:
+            logging.error(f"Error obteniendo mods: {str(e)}")
+            return None
+
+    def update_mod_list(self, mods_text):
+        """Actualiza la lista de mods en la interfaz"""
+        try:
+            # Limpiar frame de mods
+            for widget in self.mod_frame.winfo_children():
+                widget.destroy()
+            
+            # Limpiar diccionario de mods
+            self.mod_list.clear()
+            
+            # Procesar cada línea del archivo mods.txt
+            for line in mods_text.splitlines():
+                if line.startswith('#') or not line.strip():
+                    continue
+                    
+                try:
+                    filename, file_hash, download_url = line.strip().split()
+                    
+                    # Crear frame para este mod
+                    mod_frame = ttk.Frame(self.mod_frame)
+                    mod_frame.pack(fill=tk.X, pady=2)
+                    
+                    # Nombre del mod
+                    ttk.Label(mod_frame, text=filename, width=30).pack(side=tk.LEFT, padx=5)
+                    
+                    # Estado del mod
+                    status_label = ttk.Label(mod_frame, text="Verificando...")
+                    status_label.pack(side=tk.LEFT, padx=5)
+                    
+                    # Guardar información del mod
+                    self.mod_list[filename] = {
+                        'hash': file_hash,
+                        'url': download_url,
+                        'status_label': status_label
+                    }
+                    
+                    # Verificar estado actual
+                    status = self.check_mod_status(filename, file_hash)
+                    self.update_mod_status(filename, status)
+                    
+                except ValueError:
+                    logging.warning(f"Línea mal formateada en mods.txt: {line}")
+                    continue
+                    
+        except Exception as e:
+            logging.error(f"Error actualizando lista de mods: {str(e)}")
+            messagebox.showerror("Error", f"Error al actualizar lista de mods: {str(e)}")
 
 if __name__ == "__main__":
     try:
