@@ -321,7 +321,7 @@ class IsleLauncher:
 
     # Modificar el método connect para usar la ruta configurada
     def connect(self):
-        """Conecta al servidor con detección automática de mods"""
+        """Conecta al servidor con manejo de errores mejorado"""
         try:
             ip = self.ip_entry.get().strip()
             if not ip or ':' not in ip:
@@ -331,28 +331,39 @@ class IsleLauncher:
             ip_address = ip.split(':')[0]
             port = int(ip.split(':')[1])
 
-            # 1. Consultar info del servidor via Steam
-            server_info = self.query_server_info(ip_address, port)
-            if not server_info:
-                messagebox.showerror("Error", "No se pudo obtener información del servidor")
-                return
+            # 1. Intentar obtener info del servidor, pero no bloquear si falla
+            try:
+                server_info = self.query_server_info(ip_address, port)
+                if server_info and server_info['github_url']:
+                    if messagebox.askyesno(
+                        "Mods Detectados",
+                        f"Este servidor requiere mods de: {server_info['github_url']}\n¿Descargar ahora?"
+                    ):
+                        self.download_creator_mods(f"https://github.com/{server_info['github_url']}")
+            except Exception as e:
+                logging.warning(f"No se pudo consultar el servidor, continuando sin verificación: {str(e)}")
+                server_info = None
 
-            # 2. Verificar si el nombre tiene indicador de GitHub
-            if server_info['github_url']:
-                if messagebox.askyesno(
-                    "Mods Detectados",
-                    f"Este servidor requiere mods de: {server_info['github_url']}\n¿Descargar ahora?"
-                ):
-                    self.download_creator_mods(f"https://github.com/{server_info['github_url']}")
-
-            # 3. Lanzar juego
+            # 2. Verificar TheIsle.exe
             game_exe = os.path.join(self.legacy_path, "TheIsle.exe")
             if not os.path.exists(game_exe):
                 messagebox.showerror("Error", "No se encuentra TheIsle.exe")
                 return
 
+            # 3. Lanzar juego
+            logging.info(f"Conectando a: {ip}")
             command = f'"{game_exe}" -log -USEALLAVAILABLECORES +connect {ip} +accept_responsibility -nosteam -game'
-            subprocess.Popen(command, shell=True, cwd=self.legacy_path)
+            
+            try:
+                subprocess.Popen(command, shell=True, cwd=self.legacy_path)
+                logging.info("Juego iniciado correctamente")
+            except Exception as e:
+                raise Exception(f"Error iniciando el juego: {str(e)}")
+
+            # 4. Guardar servidor si es nuevo
+            if ip not in self.servers:
+                if messagebox.askyesno("Nuevo Servidor", "¿Deseas guardar este servidor?"):
+                    self.save_server()
 
         except Exception as e:
             logging.error(f"Error conectando: {str(e)}")
