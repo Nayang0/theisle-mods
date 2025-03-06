@@ -138,67 +138,78 @@ class IsleLauncher:
     def refresh_mods(self):
         """Actualiza la lista de mods disponibles"""
         try:
-            # Verificar que mods.txt existe
             if not os.path.exists('mods.txt'):
                 messagebox.showinfo("Info", "No hay lista de mods disponible")
                 return
 
-            # Usar archivo local
-            with open('mods.txt', 'r') as f:
-                mods_data = f.readlines()
-            
             # Limpiar frame de mods existente
             for widget in self.mod_frame.winfo_children():
                 widget.destroy()
             
             # Actualizar lista de mods
             self.mod_list = {}
-            for line in mods_data:
-                if line.strip() and not line.startswith('#'):
-                    filename, hash_value, download_url = line.split()
-                    var = tk.BooleanVar()
-                    
-                    # Crear checkbox y etiqueta de estado
-                    frame = ttk.Frame(self.mod_frame)
-                    frame.pack(fill=tk.X, pady=2)
-                    
-                    # Verificar estado actual del mod
-                    current_status = self.check_mod_status(filename, hash_value)
-                    
-                    ttk.Checkbutton(frame, variable=var).pack(side=tk.LEFT)
-                    ttk.Label(frame, text=filename).pack(side=tk.LEFT)
-                    status_label = ttk.Label(frame, text=current_status)
-                    status_label.pack(side=tk.RIGHT)
-                    
-                    # Forzar actualización del estado
-                    if os.path.exists(os.path.join(self.pak_folder, filename)):
-                        status_label.config(text=self.check_mod_status(filename, hash_value))
-                    
-                    self.mod_list[filename] = {
-                        'var': var,
-                        'hash': hash_value,
-                        'url': download_url,
-                        'status_label': status_label
-                    }
+            
+            with open('mods.txt', 'r') as f:
+                for line in f:
+                    if line.strip() and not line.startswith('#'):
+                        try:
+                            filename, hash_value, download_url = line.strip().split()
+                            
+                            frame = ttk.Frame(self.mod_frame)
+                            frame.pack(fill=tk.X, pady=2)
+                            
+                            var = tk.BooleanVar()
+                            ttk.Checkbutton(frame, variable=var).pack(side=tk.LEFT)
+                            ttk.Label(frame, text=filename).pack(side=tk.LEFT)
+                            
+                            # Verificar estado actual
+                            current_status = self.check_mod_status(filename, hash_value)
+                            status_label = ttk.Label(frame, text=current_status)
+                            status_label.pack(side=tk.RIGHT)
+                            
+                            self.mod_list[filename] = {
+                                'var': var,
+                                'hash': hash_value,
+                                'url': download_url,
+                                'status_label': status_label
+                            }
+                            
+                            # Log para debugging
+                            logging.info(f"Mod {filename}: {current_status}")
+                            
+                        except ValueError as e:
+                            logging.error(f"Error en formato de línea: {line.strip()}")
+                            continue
             
             # Forzar actualización visual
-            self.root.update()
-
+            self.root.update_idletasks()
+            
         except Exception as e:
             logging.error(f"Error al actualizar mods: {str(e)}")
             messagebox.showerror("Error", f"Error al actualizar mods: {str(e)}")
 
     def check_mod_status(self, filename, expected_hash):
         """Verifica el estado de un mod"""
-        filepath = os.path.join(self.pak_folder, filename)
-        if not os.path.exists(filepath):
-            return "No instalado"
-        
         try:
+            filepath = os.path.join(self.pak_folder, filename)
+            if not os.path.exists(filepath):
+                return "No instalado"
+            
             with open(filepath, 'rb') as f:
-                file_hash = hashlib.sha256(f.read()).hexdigest()
-            return "Verificado" if file_hash == expected_hash else "Desactualizado"
-        except:
+                current_hash = hashlib.sha256(f.read()).hexdigest()
+                
+            # Log para debugging
+            logging.info(f"Verificando {filename}")
+            logging.info(f"Hash esperado: {expected_hash}")
+            logging.info(f"Hash actual: {current_hash}")
+                
+            if current_hash == expected_hash:
+                return "Verificado"
+            else:
+                return "Desactualizado"
+                
+        except Exception as e:
+            logging.error(f"Error verificando {filename}: {str(e)}")
             return "Error al verificar"
 
     def generate_hashes(self):
