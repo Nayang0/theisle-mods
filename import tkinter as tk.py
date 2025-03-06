@@ -174,9 +174,10 @@ class IsleLauncher:
                 ("Paso 1", "Configura la carpeta Paks usando 'Configurar Paks'"),
                 ("Paso 2", "Configura la ruta de Legacy usando 'Configurar Legacy'"),
                 ("Paso 3", "Ingresa la IP del servidor"),
-                ("Paso 4", "El launcher detectará automáticamente si el servidor requiere mods"),
-                ("Nota", "• Los servidores con [github=usuario/repo] instalarán mods automáticamente"),
-                ("", "• Los mods se descargarán antes de conectar si son necesarios")
+                ("Paso 5", "Clic en Link Mods para ver y descargar mods de los creadores"),
+                ("Paso 6", "Cuando estés listo, haz clic en Conectar para unirte al servidor"),
+                ("Nota 1", "• Los servidores con [github=usuario/repo] puede que se instalen los mods automáticamente"),
+                ("Nota 2", "• Los mods se descargarán antes de conectar si son necesarios")
             ]
 
             # Crear grid de tutorial
@@ -321,8 +322,9 @@ class IsleLauncher:
 
     # Modificar el método connect para usar la ruta configurada
     def connect(self):
-        """Conecta al servidor con manejo de errores mejorado"""
+        """Conecta al servidor con verificación y descarga de mods primero"""
         try:
+            # 1. Validación inicial
             ip = self.ip_entry.get().strip()
             if not ip or ':' not in ip:
                 messagebox.showerror("Error", "Por favor ingresa una IP de servidor")
@@ -331,39 +333,46 @@ class IsleLauncher:
             ip_address = ip.split(':')[0]
             port = int(ip.split(':')[1])
 
-            # 1. Intentar obtener info del servidor, pero no bloquear si falla
-            try:
-                server_info = self.query_server_info(ip_address, port)
-                if server_info and server_info['github_url']:
-                    if messagebox.askyesno(
-                        "Mods Detectados",
-                        f"Este servidor requiere mods de: {server_info['github_url']}\n¿Descargar ahora?"
-                    ):
-                        self.download_creator_mods(f"https://github.com/{server_info['github_url']}")
-            except Exception as e:
-                logging.warning(f"No se pudo consultar el servidor, continuando sin verificación: {str(e)}")
-                server_info = None
-
-            # 2. Verificar TheIsle.exe
-            game_exe = os.path.join(self.legacy_path, "TheIsle.exe")
-            if not os.path.exists(game_exe):
-                messagebox.showerror("Error", "No se encuentra TheIsle.exe")
+            # 2. Verificar rutas necesarias
+            if not self.pak_folder or not os.path.exists(self.pak_folder):
+                messagebox.showerror("Error", "Configura primero la carpeta Paks")
                 return
 
-            # 3. Lanzar juego
-            logging.info(f"Conectando a: {ip}")
-            command = f'"{game_exe}" -log -USEALLAVAILABLECORES +connect {ip} +accept_responsibility -nosteam -game'
+            # 3. Verificar y descargar mods ANTES de preguntar por conexión
+            mods_installed = False
+            server_info = self.query_server_info(ip_address, port)
             
-            try:
-                subprocess.Popen(command, shell=True, cwd=self.legacy_path)
-                logging.info("Juego iniciado correctamente")
-            except Exception as e:
-                raise Exception(f"Error iniciando el juego: {str(e)}")
+            if server_info and server_info['github_url']:
+                # Si tiene GitHub en el nombre del servidor
+                if messagebox.askyesno(
+                    "Mods Detectados",
+                    f"Este servidor requiere mods de: {server_info['github_url']}\n¿Descargar e instalar ahora?"
+                ):
+                    logging.info("Descargando mods desde GitHub...")
+                    if not self.download_creator_mods(f"https://github.com/{server_info['github_url']}"):
+                        return  # Si la descarga falla, no continuar
+                    mods_installed = True
 
-            # 4. Guardar servidor si es nuevo
-            if ip not in self.servers:
-                if messagebox.askyesno("Nuevo Servidor", "¿Deseas guardar este servidor?"):
-                    self.save_server()
+            # 4. Solo preguntar por conexión si los mods están instalados o no son necesarios
+            if mods_installed:
+                if messagebox.askyesno("Conectar al Servidor", 
+                                     "Mods instalados correctamente.\n¿Deseas conectarte al servidor?"):
+                    # 5. Lanzar juego
+                    game_exe = os.path.join(self.legacy_path, "TheIsle.exe")
+                    command = f'"{game_exe}" -log -USEALLAVAILABLECORES +connect {ip} +accept_responsibility -nosteam -game'
+                    subprocess.Popen(command, shell=True, cwd=self.legacy_path)
+            else:
+                # Si no requiere mods o ya están instalados
+                if messagebox.askyesno("Conectar al Servidor", 
+                                     "¿Deseas conectarte al servidor?"):
+                    game_exe = os.path.join(self.legacy_path, "TheIsle.exe")
+                    command = f'"{game_exe}" -log -USEALLAVAILABLECORES +connect {ip} +accept_responsibility -nosteam -game'
+                    subprocess.Popen(command, shell=True, cwd=self.legacy_path)
+
+            # 6. Guardar servidor si es nuevo
+            if ip not in self.servers and messagebox.askyesno("Nuevo Servidor", 
+                                                             "¿Deseas guardar este servidor?"):
+                self.save_server()
 
         except Exception as e:
             logging.error(f"Error conectando: {str(e)}")
@@ -376,10 +385,9 @@ class IsleLauncher:
                 raise Exception("La carpeta Paks no está configurada")
 
             for mod_name in mod_list:
-                if mod_name not in self.mod_list:
+                if (mod_info := self.mod_list.get(mod_name)) is None:
                     raise Exception(f"Mod no encontrado en la lista: {mod_name}")
                     
-                mod_info = self.mod_list[mod_name]
                 url = mod_info['url']
                 
                 logging.info(f"Descargando {mod_name} desde {url}")
@@ -1197,79 +1205,78 @@ class IsleLauncher:
     def download_creator_mods(self, repo_url):
         """Descarga los mods desde el repositorio de GitHub"""
         try:
-            # Verificar que la carpeta Paks esté configurada
-            if not self.pak_folder:
+            # 1. Verificar carpeta Paks
+            if not self.pak_folder or not os.path.exists(self.pak_folder):
                 messagebox.showerror("Error", "Primero configura la carpeta Paks")
-                return
+                return False
 
-            # Construir URL correcta para el raw de GitHub
-            # Convertir URL de repo a raw content
+            # 2. Construir URL para mods.txt
             raw_url = repo_url.replace("github.com", "raw.githubusercontent.com")
             if raw_url.endswith(".git"):
                 raw_url = raw_url[:-4]
             mods_url = f"{raw_url}/main/mods.txt"
 
-            logging.info(f"Intentando descargar mods.txt desde: {mods_url}")
+            logging.info(f"Descargando mods.txt desde: {mods_url}")
             
-            # Descargar mods.txt
+            # 3. Descargar mods.txt
             response = requests.get(mods_url)
             response.raise_for_status()
             
-            with open('mods.txt', 'w') as f:
-                f.write(response.text)
-            
-            # Procesar mods.txt y descargar archivos
+            # 4. Procesar mods.txt
             mods_to_download = []
-            with open('mods.txt', 'r') as f:
-                for line in f:
-                    if line.startswith('#') or not line.strip():
-                        continue
-                    try:
-                        filename, file_hash, download_url = line.strip().split()
-                        mods_to_download.append({
-                            'filename': filename,
-                            'hash': file_hash,
-                            'url': download_url
-                        })
-                    except ValueError:
-                        continue
+            for line in response.text.splitlines():
+                if line.startswith('#') or not line.strip():
+                    continue
+                try:
+                    filename, file_hash, download_url = line.strip().split()
+                    mods_to_download.append({
+                        'filename': filename,
+                        'hash': file_hash,
+                        'url': download_url
+                    })
+                except ValueError:
+                    continue
 
             if not mods_to_download:
                 messagebox.showwarning("Advertencia", "No se encontraron mods para descargar")
-                return
+                return False
 
-            # Mostrar archivos encontrados y confirmar descarga
-            files_text = "\n".join([f"• {mod['filename']}" for mod in mods_to_download])
-            if not messagebox.askyesno(
-                "Confirmar Descarga",
-                f"Se encontraron los siguientes archivos:\n\n{files_text}\n\n¿Descargar ahora?"
-            ):
-                return
-
-            # Descargar cada archivo
+            # 5. Descargar cada mod
             for mod in mods_to_download:
                 try:
                     logging.info(f"Descargando {mod['filename']}...")
-                    if self.download_file(mod['filename'], mod['url']):
-                        # Verificar hash después de la descarga
-                        downloaded_path = os.path.join(self.pak_folder, mod['filename'])
-                        with open(downloaded_path, 'rb') as f:
-                            file_hash = hashlib.sha256(f.read()).hexdigest()
-                        if file_hash.lower() == mod['hash'].lower():
-                            logging.info(f"✓ {mod['filename']} verificado correctamente")
-                        else:
-                            logging.warning(f"⚠ {mod['filename']} hash no coincide")
+                    
+                    # Descargar archivo
+                    response = requests.get(mod['url'], stream=True)
+                    response.raise_for_status()
+                    
+                    # Guardar en la carpeta Paks
+                    filepath = os.path.join(self.pak_folder, mod['filename'])
+                    with open(filepath, 'wb') as f:
+                        for chunk in response.iter_content(chunk_size=8192):
+                            if chunk:
+                                f.write(chunk)
+                    
+                    # Verificar hash
+                    with open(filepath, 'rb') as f:
+                        file_hash = hashlib.sha256(f.read()).hexdigest()
+                    if file_hash.lower() != mod['hash'].lower():
+                        raise Exception(f"Hash no coincide para {mod['filename']}")
+                    
+                    logging.info(f"✓ {mod['filename']} instalado correctamente")
+                    
                 except Exception as e:
                     logging.error(f"Error descargando {mod['filename']}: {str(e)}")
+                    messagebox.showerror("Error", f"Error descargando {mod['filename']}: {str(e)}")
+                    return False
 
-            messagebox.showinfo("Éxito", "Descarga de mods completada")
+            messagebox.showinfo("Éxito", "Mods instalados correctamente")
+            return True
 
-        except requests.exceptions.RequestException as e:
-            logging.error(f"Error de red: {str(e)}")
-            messagebox.showerror("Error", "No se pudo acceder al repositorio")
         except Exception as e:
             logging.error(f"Error descargando mods: {str(e)}")
             messagebox.showerror("Error", f"Error descargando mods: {str(e)}")
+            return False
 
     def query_server_info(self, ip, port):
         """Query server using Steam A2S_INFO protocol with better error handling"""

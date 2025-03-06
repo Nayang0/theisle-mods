@@ -1,4 +1,4 @@
-# The Isle Legacy Launcher
+# The Isle Legacy Launcher 2.0
 
 Launcher para The Isle Legacy con soporte para mods y gestión de servidores.
 
@@ -19,7 +19,7 @@ Launcher para The Isle Legacy con soporte para mods y gestión de servidores.
 
 ## Instalación
 
-1. Clona el repositorio
+1. pon el contenido en tu carpeta que quieras
 2. Instala las dependencias: `pip install -r requirements.txt`
 3. Ejecuta `python "import tkinter as tk.py"`
 
