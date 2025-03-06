@@ -138,7 +138,12 @@ class IsleLauncher:
     def refresh_mods(self):
         """Actualiza la lista de mods disponibles"""
         try:
-            # Usar archivo local en lugar de URL remota
+            # Verificar que mods.txt existe
+            if not os.path.exists('mods.txt'):
+                messagebox.showinfo("Info", "No hay lista de mods disponible")
+                return
+
+            # Usar archivo local
             with open('mods.txt', 'r') as f:
                 mods_data = f.readlines()
             
@@ -157,10 +162,17 @@ class IsleLauncher:
                     frame = ttk.Frame(self.mod_frame)
                     frame.pack(fill=tk.X, pady=2)
                     
+                    # Verificar estado actual del mod
+                    current_status = self.check_mod_status(filename, hash_value)
+                    
                     ttk.Checkbutton(frame, variable=var).pack(side=tk.LEFT)
                     ttk.Label(frame, text=filename).pack(side=tk.LEFT)
-                    status_label = ttk.Label(frame, text=self.check_mod_status(filename, hash_value))
+                    status_label = ttk.Label(frame, text=current_status)
                     status_label.pack(side=tk.RIGHT)
+                    
+                    # Forzar actualización del estado
+                    if os.path.exists(os.path.join(self.pak_folder, filename)):
+                        status_label.config(text=self.check_mod_status(filename, hash_value))
                     
                     self.mod_list[filename] = {
                         'var': var,
@@ -168,7 +180,12 @@ class IsleLauncher:
                         'url': download_url,
                         'status_label': status_label
                     }
+            
+            # Forzar actualización visual
+            self.root.update()
+
         except Exception as e:
+            logging.error(f"Error al actualizar mods: {str(e)}")
             messagebox.showerror("Error", f"Error al actualizar mods: {str(e)}")
 
     def check_mod_status(self, filename, expected_hash):
