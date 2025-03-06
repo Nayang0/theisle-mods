@@ -130,7 +130,7 @@ class IsleLauncher:
             ttk.Button(button_frame, text="Conectar", 
                       command=self.connect).grid(row=0, column=2, padx=5, pady=5)
             ttk.Button(button_frame, text="Ver Log", 
-                      command=self.view_log).grid(row=0, column=2, padx=5, pady=5)
+                      command=self.view_log).grid(row=0, column=3, padx=5, pady=5)
 
             # Segunda fila de botones (configuración)
             ttk.Button(button_frame, text="Configurar Legacy", 
