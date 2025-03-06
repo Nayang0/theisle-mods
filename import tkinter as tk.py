@@ -661,6 +661,19 @@ class IsleLauncher:
         except Exception as e:
             logging.error(f"Error actualizando estado de mod: {str(e)}")
 
+    def toggle_admin_features(self):
+        """Habilita/deshabilita características de administrador"""
+        try:
+            if self.is_admin.get():
+                self.hash_button.config(state='normal')
+                logging.info("Modo administrador activado")
+            else:
+                self.hash_button.config(state='disabled')
+                logging.info("Modo administrador desactivado")
+        except Exception as e:
+            logging.error(f"Error al cambiar rol: {str(e)}")
+            messagebox.showerror("Error", f"Error al cambiar rol: {str(e)}")
+
 if __name__ == "__main__":
     try:
         root = tk.Tk()
