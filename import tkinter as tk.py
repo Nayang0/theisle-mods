@@ -138,6 +138,15 @@ class IsleLauncher:
     def refresh_mods(self):
         """Actualiza la lista de mods disponibles"""
         try:
+            # Verificar si la ruta de Paks está configurada
+            if not os.path.exists(self.pak_folder):
+                messagebox.showwarning(
+                    "Configuración Requerida",
+                    "Por favor, configura primero la ruta de la carpeta Paks usando el botón 'Configurar Paks'"
+                )
+                return
+
+            # Verificar si existe mods.txt
             if not os.path.exists('mods.txt'):
                 messagebox.showinfo("Info", "No hay lista de mods disponible")
                 return
@@ -162,8 +171,14 @@ class IsleLauncher:
                             ttk.Checkbutton(frame, variable=var).pack(side=tk.LEFT)
                             ttk.Label(frame, text=filename).pack(side=tk.LEFT)
                             
-                            # Verificar estado actual
+                            # Verificar estado actual usando la ruta configurada
+                            filepath = os.path.join(self.pak_folder, filename)
                             current_status = self.check_mod_status(filename, hash_value)
+                            
+                            # Log para debugging de rutas
+                            logging.info(f"Verificando mod en: {filepath}")
+                            logging.info(f"Estado actual: {current_status}")
+                            
                             status_label = ttk.Label(frame, text=current_status)
                             status_label.pack(side=tk.RIGHT)
                             
@@ -173,9 +188,6 @@ class IsleLauncher:
                                 'url': download_url,
                                 'status_label': status_label
                             }
-                            
-                            # Log para debugging
-                            logging.info(f"Mod {filename}: {current_status}")
                             
                         except ValueError as e:
                             logging.error(f"Error en formato de línea: {line.strip()}")
@@ -192,18 +204,24 @@ class IsleLauncher:
         """Verifica el estado de un mod"""
         try:
             filepath = os.path.join(self.pak_folder, filename)
+            
+            # Log para debugging
+            logging.info(f"Verificando archivo en: {filepath}")
+            
             if not os.path.exists(filepath):
+                logging.info(f"Archivo no encontrado en: {filepath}")
                 return "No instalado"
             
             with open(filepath, 'rb') as f:
                 current_hash = hashlib.sha256(f.read()).hexdigest()
                 
-            # Log para debugging
+            # Log detallado
             logging.info(f"Verificando {filename}")
+            logging.info(f"Ruta completa: {filepath}")
             logging.info(f"Hash esperado: {expected_hash}")
             logging.info(f"Hash actual: {current_hash}")
                 
-            if current_hash == expected_hash:
+            if current_hash.lower() == expected_hash.lower():
                 return "Verificado"
             else:
                 return "Desactualizado"
