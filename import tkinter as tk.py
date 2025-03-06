@@ -694,18 +694,20 @@ class IsleLauncher:
                 if response.status_code == 200:
                     logging.info("mods.txt obtenido del servidor correctamente")
                     return response.text
+                else:
+                    logging.info(f"Servidor no tiene mods.txt (Status: {response.status_code})")
+                    # Retornar un mods.txt vacío
+                    return "# filename hash download_url\n# Este servidor no requiere mods"
                     
             except requests.RequestException as e:
-                logging.warning(f"No se pudo obtener mods.txt del servidor: {e}")
-            
-            # Si no se puede obtener del servidor, usar archivo local
-            if os.path.exists('mods.txt'):
-                logging.info("Usando mods.txt local como respaldo")
-                with open('mods.txt', 'r') as f:
-                    return f.read()
-            
-            logging.error("No se pudo obtener lista de mods")
-            return None
+                logging.warning(f"No se pudo conectar al servidor: {e}")
+                messagebox.showinfo(
+                    "Info",
+                    f"El servidor {ip_port} no tiene mods configurados\n"
+                    "No se requieren mods para conectar"
+                )
+                # Retornar un mods.txt vacío
+                return "# filename hash download_url\n# Este servidor no requiere mods"
                 
         except Exception as e:
             logging.error(f"Error obteniendo mods: {str(e)}")
