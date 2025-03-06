@@ -36,16 +36,12 @@ class IsleLauncher:
             self.root.title("The Isle: Legacy Launcher")
             
             # Aumentar el tamaño inicial de la ventana
-            self.root.geometry("800x700")  # Ancho x Alto
-            
-            # Hacer que la ventana sea redimensionable
+            self.root.geometry("800x700")
             self.root.resizable(True, True)
-            
-            # Configurar expansión mínima
             self.root.minsize(800, 700)
             
-            # Establecer pak_folder antes de cualquier otra operación
-            self.pak_folder = DEFAULT_PAK_FOLDER
+            # Inicializar pak_folder como None para forzar configuración
+            self.pak_folder = None
             
             # Inicializar variables
             self.downloading = False
@@ -138,25 +134,50 @@ class IsleLauncher:
     def refresh_mods(self):
         """Actualiza la lista de mods disponibles"""
         try:
-            # Verificar si la ruta de Paks está configurada
-            if not os.path.exists(self.pak_folder):
+            # Verificar que la ruta de Paks haya sido configurada
+            if not self.pak_folder:
                 messagebox.showwarning(
                     "Configuración Requerida",
-                    "Por favor, configura primero la ruta de la carpeta Paks usando el botón 'Configurar Paks'"
+                    "¡Importante! Antes de continuar:\n\n"
+                    "1. Presiona el botón 'Configurar Paks'\n"
+                    "2. Selecciona la carpeta Paks de tu instalación\n\n"
+                    "Ruta típica:\n"
+                    "C:\\Program Files (x86)\\Steam\\steamapps\\common\\The Isle - legacy\\TheIsle\\Content\\Paks"
                 )
                 return
+                
+            # Verificar que la ruta existe
+            if not os.path.exists(self.pak_folder):
+                messagebox.showerror(
+                    "Error",
+                    f"La carpeta Paks configurada no existe:\n{self.pak_folder}\n\n"
+                    "Por favor, configura nuevamente la ruta usando el botón 'Configurar Paks'"
+                )
+                self.pak_folder = None  # Reset para forzar reconfiguración
+                return
 
-            # Verificar si existe mods.txt
+            # Log de verificación de ruta
+            logging.info(f"Verificando mods en ruta: {self.pak_folder}")
+
+            # Verificar y cargar mods.txt
             if not os.path.exists('mods.txt'):
                 messagebox.showinfo("Info", "No hay lista de mods disponible")
                 return
 
-            # Limpiar frame de mods existente
+            # Limpiar frame existente
             for widget in self.mod_frame.winfo_children():
                 widget.destroy()
-            
-            # Actualizar lista de mods
+
+            # Reiniciar lista de mods
             self.mod_list = {}
+            
+            # Verificar y cargar mods.txt
+            if not os.path.exists('mods.txt'):
+                messagebox.showinfo("Info", "No hay lista de mods disponible")
+                return
+
+            # Log de la ruta actual
+            logging.info(f"Ruta de Paks actual: {self.pak_folder}")
             
             with open('mods.txt', 'r') as f:
                 for line in f:
@@ -171,22 +192,18 @@ class IsleLauncher:
                             ttk.Checkbutton(frame, variable=var).pack(side=tk.LEFT)
                             ttk.Label(frame, text=filename).pack(side=tk.LEFT)
                             
-                            # Verificar estado actual usando la ruta configurada
-                            filepath = os.path.join(self.pak_folder, filename)
+                            # Verificar estado actual
                             current_status = self.check_mod_status(filename, hash_value)
-                            
-                            # Log para debugging de rutas
-                            logging.info(f"Verificando mod en: {filepath}")
-                            logging.info(f"Estado actual: {current_status}")
-                            
                             status_label = ttk.Label(frame, text=current_status)
                             status_label.pack(side=tk.RIGHT)
                             
+                            # Guardar referencia
                             self.mod_list[filename] = {
                                 'var': var,
                                 'hash': hash_value,
                                 'url': download_url,
-                                'status_label': status_label
+                                'status_label': status_label,
+                                'status': current_status  # Guardar estado actual
                             }
                             
                         except ValueError as e:
@@ -194,7 +211,7 @@ class IsleLauncher:
                             continue
             
             # Forzar actualización visual
-            self.root.update_idletasks()
+            self.root.update()
             
         except Exception as e:
             logging.error(f"Error al actualizar mods: {str(e)}")
@@ -207,25 +224,28 @@ class IsleLauncher:
             
             # Log para debugging
             logging.info(f"Verificando archivo en: {filepath}")
+            logging.info(f"Ruta de Paks actual: {self.pak_folder}")
             
             if not os.path.exists(filepath):
                 logging.info(f"Archivo no encontrado en: {filepath}")
                 return "No instalado"
             
             with open(filepath, 'rb') as f:
-                current_hash = hashlib.sha256(f.read()).hexdigest()
+                file_content = f.read()
+                current_hash = hashlib.sha256(file_content).hexdigest()
                 
             # Log detallado
             logging.info(f"Verificando {filename}")
             logging.info(f"Ruta completa: {filepath}")
             logging.info(f"Hash esperado: {expected_hash}")
             logging.info(f"Hash actual: {current_hash}")
-                
+            logging.info(f"Tamaño archivo: {len(file_content)} bytes")
+            
             if current_hash.lower() == expected_hash.lower():
                 return "Verificado"
-            else:
-                return "Desactualizado"
-                
+            
+            return "Desactualizado"
+            
         except Exception as e:
             logging.error(f"Error verificando {filename}: {str(e)}")
             return "Error al verificar"
@@ -343,14 +363,16 @@ class IsleLauncher:
             if os.path.exists(CONFIG_FILE):
                 with open(CONFIG_FILE, "r") as f:
                     config = json.load(f)
-                    self.pak_folder = config.get("pak_folder", DEFAULT_PAK_FOLDER)
+                    # No usar valor por defecto, forzar configuración manual
+                    self.pak_folder = config.get("pak_folder", None)
                     self.legacy_path = config.get("legacy_path", DEFAULT_LEGACY_PATH)
             else:
-                self.pak_folder = DEFAULT_PAK_FOLDER
+                self.pak_folder = None
                 self.legacy_path = DEFAULT_LEGACY_PATH
                 self.save_config()
         except Exception as e:
             logging.error(f"Error al cargar configuración: {str(e)}")
+            self.pak_folder = None
 
     # Añadir método para guardar configuración
     def save_config(self):
