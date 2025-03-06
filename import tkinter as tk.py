@@ -34,7 +34,15 @@ class IsleLauncher:
         try:
             self.root = root
             self.root.title("The Isle: Legacy Launcher")
-            self.root.geometry("500x600")
+            
+            # Aumentar el tamaño inicial de la ventana
+            self.root.geometry("800x700")  # Ancho x Alto
+            
+            # Hacer que la ventana sea redimensionable
+            self.root.resizable(True, True)
+            
+            # Configurar expansión mínima
+            self.root.minsize(800, 700)
             
             # Establecer pak_folder antes de cualquier otra operación
             self.pak_folder = DEFAULT_PAK_FOLDER
@@ -85,15 +93,17 @@ class IsleLauncher:
             # Botones
             button_frame = ttk.Frame(main_frame)
             button_frame.grid(row=5, column=0, columnspan=2, pady=5)
-            
-            ttk.Button(button_frame, text="Generar Hashes", command=self.generate_hashes).pack(side=tk.LEFT, padx=5)
-            ttk.Button(button_frame, text="Actualizar Mods", command=self.refresh_mods).pack(side=tk.LEFT, padx=5)
-            ttk.Button(button_frame, text="Conectar", command=self.connect).pack(side=tk.LEFT, padx=5)
-            ttk.Button(button_frame, text="Abrir Carpeta Paks", command=self.open_pak_folder).pack(side=tk.LEFT, padx=5)
-            ttk.Button(button_frame, text="Guardar Servidor", command=self.save_server).pack(side=tk.LEFT, padx=5)
-            ttk.Button(button_frame, text="Ver Log", command=self.view_log).pack(side=tk.LEFT, padx=5)
-            ttk.Button(button_frame, text="Configurar Legacy", 
-                  command=self.set_legacy_path).pack(side=tk.LEFT, padx=5)
+
+            # Crear dos filas de botones para mejor visibilidad
+            ttk.Button(button_frame, text="Generar Hashes", command=self.generate_hashes).grid(row=0, column=0, padx=5, pady=5)
+            ttk.Button(button_frame, text="Actualizar Mods", command=self.refresh_mods).grid(row=0, column=1, padx=5, pady=5)
+            ttk.Button(button_frame, text="Conectar", command=self.connect).grid(row=0, column=2, padx=5, pady=5)
+            ttk.Button(button_frame, text="Abrir Carpeta Paks", command=self.open_pak_folder).grid(row=0, column=3, padx=5, pady=5)
+
+            ttk.Button(button_frame, text="Guardar Servidor", command=self.save_server).grid(row=1, column=0, padx=5, pady=5)
+            ttk.Button(button_frame, text="Ver Log", command=self.view_log).grid(row=1, column=1, padx=5, pady=5)
+            ttk.Button(button_frame, text="Configurar Legacy", command=self.set_legacy_path).grid(row=1, column=2, padx=5, pady=5)
+            ttk.Button(button_frame, text="Configurar Paks", command=self.set_paks_path).grid(row=1, column=3, padx=5, pady=5)
             
         except Exception as e:
             logging.error(f"Error en setup_gui: {str(e)}")
@@ -188,7 +198,13 @@ class IsleLauncher:
                 messagebox.showerror("Error", "IP inválida")
                 return
 
-            # Descargar mods.txt del servidor si existe
+            # Verificar que existe la ruta de Legacy
+            game_exe = os.path.join(self.legacy_path, "TheIsle.exe")
+            if not os.path.exists(game_exe):
+                messagebox.showerror("Error", "No se encuentra TheIsle.exe en la ruta configurada")
+                return
+
+            # Verificar mods
             try:
                 response = requests.get(MODS_URL, timeout=5)
                 if response.status_code == 200:
@@ -196,7 +212,6 @@ class IsleLauncher:
                         f.write(response.text)
                     self.refresh_mods()
                     
-                    # Verificar mods requeridos
                     missing_mods = []
                     for filename, mod_info in self.mod_list.items():
                         if self.check_mod_status(filename, mod_info['hash']) != "Verificado":
@@ -210,15 +225,17 @@ class IsleLauncher:
             except:
                 logging.info("No se pudo obtener mods.txt del servidor")
 
-            # Construir URL de Steam con parámetros de conexión
-            launch_params = f"+connect {ip} +accept_responsibility"
-            steam_url = f"{STEAM_URL_PROTOCOL}/{launch_params}"
-            
-            # Lanzar a través de Steam
-            webbrowser.open(steam_url)
+            # Lanzar el juego directamente con los parámetros
+            command = f'"{game_exe}" -log -USEALLAVAILABLECORES +connect {ip} +accept_responsibility -nosteam -game'
             
             # Log del comando
-            logging.info(f"Lanzando via Steam: {steam_url}")
+            logging.info(f"Lanzando Legacy: {command}")
+            
+            # Cambiar al directorio del juego y ejecutar
+            current_dir = os.getcwd()
+            os.chdir(self.legacy_path)
+            subprocess.Popen(command, shell=True)
+            os.chdir(current_dir)
 
         except Exception as e:
             logging.error(f"Error al conectar: {str(e)}")
@@ -290,6 +307,21 @@ class IsleLauncher:
                 messagebox.showinfo("Éxito", "Ruta de Legacy actualizada correctamente")
         except Exception as e:
             logging.error(f"Error al establecer ruta de Legacy: {str(e)}")
+
+    # Añadir método para seleccionar ruta de Paks
+    def set_paks_path(self):
+        """Permite al usuario seleccionar la ubicación de la carpeta Paks"""
+        try:
+            folder_path = filedialog.askdirectory(
+                title="Seleccionar carpeta Paks",
+                initialdir=self.pak_folder
+            )
+            if folder_path:
+                self.pak_folder = folder_path
+                self.save_config()
+                messagebox.showinfo("Éxito", "Ruta de Paks actualizada correctamente")
+        except Exception as e:
+            logging.error(f"Error al establecer ruta de Paks: {str(e)}")
 
     # 2. Carpeta para mods deshabilitados
     def setup_folders(self):
