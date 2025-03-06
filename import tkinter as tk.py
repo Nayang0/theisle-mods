@@ -104,7 +104,33 @@ class IsleLauncher:
             ttk.Button(button_frame, text="Ver Log", command=self.view_log).grid(row=1, column=1, padx=5, pady=5)
             ttk.Button(button_frame, text="Configurar Legacy", command=self.set_legacy_path).grid(row=1, column=2, padx=5, pady=5)
             ttk.Button(button_frame, text="Configurar Paks", command=self.set_paks_path).grid(row=1, column=3, padx=5, pady=5)
-            
+
+            # Después de los botones, añadir marco de ayuda
+            help_frame = ttk.LabelFrame(main_frame, text="Guía de Botones", padding="5")
+            help_frame.grid(row=6, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=10)
+
+            # Textos de ayuda para cada botón
+            helps = [
+                ("Generar Hashes", "Genera códigos de verificación para los mods en la carpeta"),
+                ("Actualizar Mods", "Verifica el estado de los mods instalados"),
+                ("Conectar", "Inicia el juego y conecta al servidor seleccionado"),
+                ("Abrir Carpeta Paks", "Abre la carpeta donde se instalan los mods"),
+                ("Guardar Servidor", "Guarda la IP actual en la lista de servidores"),
+                ("Ver Log", "Muestra el registro de errores y eventos"),
+                ("Configurar Legacy", "Selecciona la ubicación del ejecutable de Legacy"),
+                ("Configurar Paks", "Selecciona la carpeta donde se instalarán los mods")
+            ]
+
+            # Crear grid de ayuda (4 columnas)
+            for i, (button, help_text) in enumerate(helps):
+                row = i // 2  # Dos filas
+                col = i % 2   # Dos columnas
+                help_label = ttk.Label(help_frame, 
+                                    text=f"{button}: {help_text}", 
+                                    wraplength=350,
+                                    justify=tk.LEFT)
+                help_label.grid(row=row, column=col, padx=5, pady=2, sticky=tk.W)
+
         except Exception as e:
             logging.error(f"Error en setup_gui: {str(e)}")
             messagebox.showerror("Error", f"Error en la interfaz: {str(e)}")
