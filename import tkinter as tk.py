@@ -43,31 +43,21 @@ class IsleLauncher:
             self.root = root
             self.root.title("The Isle: Legacy Launcher")
             
-            # Aumentar el tamaño inicial de la ventana
-            self.root.geometry("800x700")
-            self.root.resizable(True, True)
-            self.root.minsize(800, 700)
+            # Initialize default paths
+            self.legacy_path = ""
+            self.pak_folder = ""
             
-            # Inicializar pak_folder como None para forzar configuración
-            self.pak_folder = None
-            
-            # Inicializar variables
-            self.downloading = False
-            self.mod_list = {}
+            # Initialize other variables
             self.servers = {}
+            self.mod_list = {}
+            self.is_admin = tk.BooleanVar(value=False)
             self.creators = self.load_creators()
             
-            # Cargar configuración
+            # Load configuration
             self.load_config()
             
-            # Configurar carpetas
-            self.setup_folders()
-            
-            # Interfaz gráfica
+            # Setup GUI
             self.setup_gui()
-            
-            # Cargar servidores
-            self.load_servers()
             
         except Exception as e:
             logging.error(f"Error en inicialización: {str(e)}")
@@ -509,62 +499,13 @@ class IsleLauncher:
 
     # 1. Configuración persistente
     def load_config(self):
-        """Carga o crea configuración personalizada"""
+        """Carga la configuración del launcher"""
         try:
             if os.path.exists(CONFIG_FILE):
                 with open(CONFIG_FILE, "r") as f:
                     config = json.load(f)
-                    self.pak_folder = config.get("pak_folder", "")
                     self.legacy_path = config.get("legacy_path", "")
-
-            # Si no existe configuración o las rutas no son válidas
-            if not self.pak_folder or not os.path.exists(self.pak_folder):
-                # Intentar buscar en ubicaciones comunes
-                possible_paths = [
-                    os.path.join(os.environ["ProgramFiles(x86)"], "Steam", "steamapps", "common", "The Isle", "TheIsle", "Content", "Paks"),
-                    os.path.join(os.environ["ProgramFiles"], "Steam", "steamapps", "common", "The Isle", "TheIsle", "Content", "Paks"),
-                    os.path.join(os.environ["ProgramFiles(x86)"], "Steam", "steamapps", "common", "The Isle - legacy", "TheIsle", "Content", "Paks"),
-                    "D:\\Steam\\steamapps\\common\\The Isle\\TheIsle\\Content\\Paks",
-                    "E:\\Steam\\steamapps\\common\\The Isle\\TheIsle\\Content\\Paks"
-                ]
-                
-                for path in possible_paths:
-                    if os.path.exists(path):
-                        self.pak_folder = path
-                        break
-                        
-                if not self.pak_folder:
-                    # Si no se encuentra, pedir al usuario
-                    messagebox.showinfo(
-                        "Configuración Inicial",
-                        "Por favor selecciona tu carpeta Paks de The Isle"
-                    )
-                    self.set_paks_path()
-
-            if not self.legacy_path or not os.path.exists(self.legacy_path):
-                # Buscar Legacy en ubicaciones comunes
-                possible_legacy = [
-                    os.path.join(os.environ["ProgramFiles(x86)"], "Steam", "steamapps", "common", "The Isle"),
-                    os.path.join(os.environ["ProgramFiles"], "Steam", "steamapps", "common", "The Isle"),
-                    os.path.join(os.environ["ProgramFiles(x86)"], "Steam", "steamapps", "common", "The Isle - legacy"),
-                    "D:\\Steam\\steamapps\\common\\The Isle",
-                    "E:\\Steam\\steamapps\\common\\The Isle"
-                ]
-                
-                for path in possible_legacy:
-                    if os.path.exists(path):
-                        self.legacy_path = path
-                        break
-                        
-                if not self.legacy_path:
-                    messagebox.showinfo(
-                        "Configuración Inicial",
-                        "Por favor selecciona la carpeta de The Isle Legacy"
-                    )
-                    self.set_legacy_path()
-
-            # Guardar configuración encontrada/seleccionada
-            self.save_config()
+                    self.pak_folder = config.get("pak_folder", "")
                 
         except Exception as e:
             logging.error(f"Error cargando configuración: {str(e)}")
